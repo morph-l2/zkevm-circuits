@@ -37,6 +37,7 @@ pub struct ZktrieState {
 }
 
 unsafe impl Send for ZktrieState {}
+unsafe impl Sync for ZktrieState {}
 
 impl fmt::Debug for ZktrieState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

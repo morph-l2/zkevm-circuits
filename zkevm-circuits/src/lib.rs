@@ -15,7 +15,6 @@
 // Catch documentation errors caused by code changes.
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_docs)]
-#![deny(unsafe_code)]
 #![deny(clippy::debug_assert_with_mut_call)]
 
 pub mod bytecode_circuit;

@@ -178,6 +178,7 @@ impl Block {
                 .map(|b| (b.number.as_u64(), b.clone()))
                 .collect::<BTreeMap<_, _>>(),
             circuits_params,
+            chain_id: U256::from(1337),
             ..Default::default()
         }
     }
