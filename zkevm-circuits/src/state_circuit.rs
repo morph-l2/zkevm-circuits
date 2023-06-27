@@ -470,8 +470,8 @@ pub struct StateCircuit<F> {
     _marker: PhantomData<F>,
 }
 
-unsafe impl<F> Send for StateCircuit<F> {}
-unsafe impl<F> Sync for StateCircuit<F> {}
+// unsafe impl<F> Send for StateCircuit<F> {}
+// unsafe impl<F> Sync for StateCircuit<F> {}
 
 impl<F: Field> StateCircuit<F> {
     /// make a new state circuit from an RwMap
