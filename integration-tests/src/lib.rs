@@ -24,7 +24,7 @@ use std::{
 use url::Url;
 
 /// Geth dev chain ID
-pub const CHAIN_ID: u64 = 53077;
+pub const CHAIN_ID: u64 = 1337;
 /// Path to the test contracts
 pub const CONTRACTS_PATH: &str = "contracts";
 /// List of contracts as (ContractName, ContractSolidityFile)
@@ -38,7 +38,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
 /// Path to gen_blockchain_data output file
 pub const GENDATA_OUTPUT_PATH: &str = "gendata_output.json";
 
-const GETH0_URL_DEFAULT: &str = "http://ec2-35-91-11-8.us-west-2.compute.amazonaws.com:8545";
+const GETH0_URL_DEFAULT: &str = "http://ec2-35-91-11-8.us-west-2.compute.amazonaws.com:8569";
 
 lazy_static! {
     /// URL of the integration test geth0 instance, which contains blocks for which proofs will be
@@ -51,13 +51,13 @@ lazy_static! {
     /// ..
     pub static ref START_BLOCK: usize =  match env::var("START_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 19796,
+        Err(VarError::NotPresent) => 5,
         Err(e) => panic!("Error in START_BLOCK env var: {:?}", e),
     };
     /// ..
     pub static ref END_BLOCK: usize =  match env::var("END_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 19796,
+        Err(VarError::NotPresent) => 5,
         Err(e) => panic!("Error in END_BLOCK env var: {:?}", e),
     };
     /// ..
