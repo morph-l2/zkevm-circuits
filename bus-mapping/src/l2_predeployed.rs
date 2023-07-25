@@ -11,9 +11,9 @@ pub mod message_queue {
 
     /// address of L2MessageQueue predeploy
     pub static ADDRESS: Lazy<Address> =
-        Lazy::new(|| Address::from_str("0x5300000000000000000000000000000000000000").unwrap());
+        Lazy::new(|| Address::from_str("0x5300000000000000000000000000000000000001").unwrap());
     /// the slot of withdraw root in L2MessageQueue
-    pub static WITHDRAW_TRIE_ROOT_SLOT: Lazy<U256> = Lazy::new(U256::zero);
+    pub static WITHDRAW_TRIE_ROOT_SLOT: Lazy<U256> = Lazy::new(|| U256::from(45));
 }
 
 /// Helper for L1GasPriceOracle contract
