@@ -77,7 +77,6 @@ pub struct EccCircuitConfig<F: Field> {
     fp_config: FpConfig<F, Fq>,
     /// Lookup table for I/Os to the EcAdd, EcMul and EcPairing operations.
     ecc_table: EccTable,
-
     /// Number of limbs to represent Fp.
     num_limbs: usize,
     /// Number of bits per limb.

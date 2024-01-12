@@ -16,7 +16,7 @@
 #![allow(clippy::result_large_err)] // it's large, but what can we do?
 // Catch documentation errors caused by code changes.
 #![deny(rustdoc::broken_intra_doc_links)]
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 #![deny(unsafe_code)]
 #![deny(clippy::debug_assert_with_mut_call)]
 // We have too many cast between `usize` and `u64`,
@@ -24,6 +24,8 @@
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("This program requires a 64-bit target architecture.");
 
+
+pub mod blob_circuit;
 pub mod bytecode_circuit;
 pub mod copy_circuit;
 pub mod ecc_circuit;

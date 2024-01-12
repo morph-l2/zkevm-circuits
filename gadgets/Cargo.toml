@@ -9,9 +9,25 @@ license = "MIT OR Apache-2.0"
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_02_02" }
 sha3 = "0.7.2"
 eth-types = { path = "../eth-types" }
+#zkevm-circuits = { path = "../zkevm-circuits" }
 digest = "0.7.6"
 strum = "0.24"
+halo2-base = {default-features = false, features = [
+    "halo2-pse",
+    "display",
+], git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce"}
+
+halo2-ecc = {default-features = false, features = [
+    "halo2-pse",
+    "display",
+], git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce"}
+
+bls12_381 = { git = "https://github.com/chengwenxi/bls12_381.git", branch = "eip4844" }
+poseidon = {git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce", package="poseidon"}
+
+rand = "0.8"
 
 [dev-dependencies]
 rand_xorshift = "0.3"
 rand = "0.8"
+poseidon_native = { git = "https://github.com/axiom-crypto/halo2.git", branch = "axiom/dev", package = "poseidon" }
