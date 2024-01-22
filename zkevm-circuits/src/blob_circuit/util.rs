@@ -1,4 +1,4 @@
-use halo2_base::QuantumCell::Constant;
+use halo2_base::QuantumCell::{Constant, self};
 use halo2_base::gates::flex_gate::FlexGateConfig;
 use halo2_base::utils::fe_to_biguint;
 //use halo2_base::::{RangeInstructions, GateInstructions};
@@ -36,35 +36,84 @@ const FR_MODULUS_BITS: usize = 254;
 // so we just set it to S = 32 for the test purposes. 
 pub const FP_S: u32 = 32;
 
+// pub fn decompose_to_lo_hi<F: Field>(
+//     ctx: &mut Context<F>,
+//     range: &RangeConfig<F>,
+//     x: F,
+// ) -> (AssignedValue<F>, AssignedValue<F>) {
+
+//     //let x_limbs = halo2_base::utils::decompose(&x, NUM_LIMBS, LIMB_BITS);
+
+//     let x_limbs = halo2_base::utils::decompose_biguint(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
+
+//     let x_lo =
+//         range.gate.load_witness(ctx, Value::known(x_limbs[0] + x_limbs[1] * (F::from(2).pow(&[LIMB_BITS as u64, 0, 0, 0]))));
+
+//     range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
+
+//     let x_hi = range.gate.load_witness(ctx, Value::known(x_limbs[2]));
+
+//     range.range_check(ctx, &x_hi.clone(), FR_MODULUS_BITS - LIMB_BITS * 2);
+
+//     let mut sum = range.gate.mul(
+//         ctx,
+//         QuantumCell::Existing(x_hi),
+//         Constant(F::from(2).pow(&[LIMB_BITS as u64 * 2, 0, 0, 0])),
+//     );
+//     sum = range.gate.add(ctx, QuantumCell::Existing(sum), QuantumCell::Existing(x_lo));
+
+//     ctx.constrain_equal(&sum, );
+
+//     (x_lo, x_hi)
+// }
+
+pub fn decompose_lo<F: Field>(
+    x: F
+) -> F {
+    let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
+
+    x_limbs[0] + x_limbs[1] * (F::from(2).pow(&[LIMB_BITS as u64, 0, 0, 0]))
+}
+
+pub fn decompose_hi<F: Field>(
+    x: F
+) -> F {
+    let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
+
+    x_limbs[2]
+}
+
 pub fn decompose_to_lo_hi<F: Field>(
     ctx: &mut Context<F>,
     range: &RangeConfig<F>,
-    x: F,
+    x: AssignedValue<F>,
 ) -> (AssignedValue<F>, AssignedValue<F>) {
 
-    //let x_limbs = halo2_base::utils::decompose(&x, NUM_LIMBS, LIMB_BITS);
-
-    let x_limbs = halo2_base::utils::decompose_biguint(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
-
     let x_lo =
-        range.gate.load_witness(ctx, Value::known(x_limbs[0] + x_limbs[1] * (F::from(2).pow(&[LIMB_BITS as u64, 0, 0, 0]))));
+        range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_lo(x)));
 
     range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
 
-    let x_hi = range.gate.load_witness(ctx, Value::known(x_limbs[2]));
+    let x_hi = range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_hi(x)));
 
     range.range_check(ctx, &x_hi.clone(), FR_MODULUS_BITS - LIMB_BITS * 2);
 
     let mut sum = range.gate.mul(
         ctx,
-        x_hi,
+        QuantumCell::Existing(x_hi),
         Constant(F::from(2).pow(&[LIMB_BITS as u64 * 2, 0, 0, 0])),
     );
-    sum = range.gate.add(ctx, sum, x_lo);
+    sum = range.gate.add(ctx, QuantumCell::Existing(sum), QuantumCell::Existing(x_lo));
 
     ctx.constrain_equal(&sum, &x);
 
     (x_lo, x_hi)
+}
+
+pub fn to_bytes<F: Field>(
+    x: F
+) -> [u8;32] {
+    x.to_repr().as_ref().to_vec().as_slice()[0..31].try_into().unwrap()
 }
 
 
@@ -75,14 +124,17 @@ pub fn cross_field_load_private<F: Field>(
     x_lo: &AssignedValue<F>,
     x_hi: &AssignedValue<F>,
 ) -> CRTInteger<F> {
-    let x_fp = Fp::from_bytes_le(x_lo.value().to_bytes_le().as_slice())
-        + Fp::from_bytes_le(x_hi.value().to_bytes_le().as_slice())
-            * Fp::from(2).pow(&[(LIMB_BITS * 2) as u64, 0, 0, 0]);
+
+    let x_lo_fp = x_lo.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap());
+
+    let x_hi_fp = x_hi.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap() * Fp::from(2).pow(&[(LIMB_BITS * 2) as u64, 0, 0, 0]));
+
+    let x_fp = x_lo_fp * x_hi_fp;
 
     range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
     range.range_check(ctx, &x_hi.clone(), FP_MODULUS_BITS - LIMB_BITS * 2);
 
-    let x_fp = fq_chip.load_private(ctx, x_fp);
+    let x_fp = fq_chip.load_private(ctx, FpConfig::<F, Fp>::fe_to_witness(&x_fp));
     cross_field_constrain_equal(ctx, &fq_chip.range().gate, x_lo, x_hi, &x_fp);
     x_fp
 }
@@ -107,8 +159,8 @@ pub fn cross_field_constrain_equal<F: Field>(
     let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
     for i in 0..2 {
         let limb = x_fp_limbs[i];
-        sum = gate.mul_add(ctx, limb.clone(), mul, sum);
-        mul = gate.mul(ctx, limb_multiplier, mul);
+        sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
+        mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
     }
     ctx.constrain_equal(&sum, &x_lo);
 
@@ -118,8 +170,8 @@ pub fn cross_field_constrain_equal<F: Field>(
     let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
     for i in 2..NUM_LIMBS {
         let limb = x_fp_limbs[i];
-        sum = gate.mul_add(ctx, limb.clone(), mul, sum);
-        mul = gate.mul(ctx, limb_multiplier, mul);
+        sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
+        mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
     }
     ctx.constrain_equal(&sum, &x_hi);
 }
@@ -137,8 +189,8 @@ pub fn fp_is_zero<F: Field>(
     let x_fp_limbs = x_fp.limbs();
     let mut partial_and = gate.load_constant(ctx, F::from(1));
     for limb in x_fp_limbs {
-        let is_zero_limb = gate.is_equal(ctx, limb.clone(), zero);
-        partial_and = gate.and(ctx, is_zero_limb, Constant(F::from(1)));
+        let is_zero_limb = gate.is_equal(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(zero));
+        partial_and = gate.and(ctx, QuantumCell::Existing(is_zero_limb), Constant(F::from(1)));
     }
     partial_and
 }
