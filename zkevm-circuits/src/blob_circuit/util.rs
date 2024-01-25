@@ -113,7 +113,20 @@ pub fn decompose_to_lo_hi<F: Field>(
 pub fn to_bytes<F: Field>(
     x: F
 ) -> [u8;32] {
-    x.to_repr().as_ref().to_vec().as_slice()[0..31].try_into().unwrap()
+
+    let mut u8_vec = x.to_repr().as_ref().to_vec();
+
+    println!("F vec len:{}", u8_vec.len());
+
+    if u8_vec.len() < 32 {
+        u8_vec.resize(32, 0);
+    }
+
+    let u8_array: [u8; 32] = u8_vec.as_slice().try_into().unwrap_or_else(|_| {
+        panic!("Failed to convert Vec to array.");
+    });
+    
+    u8_array
 }
 
 
@@ -126,7 +139,7 @@ pub fn cross_field_load_private<F: Field>(
 ) -> CRTInteger<F> {
 
     let x_lo_fp = x_lo.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap());
-
+    
     let x_hi_fp = x_hi.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap() * Fp::from(2).pow(&[(LIMB_BITS * 2) as u64, 0, 0, 0]));
 
     let x_fp = x_lo_fp * x_hi_fp;
@@ -239,4 +252,68 @@ pub fn bit_reversal_permutation<T: Clone>(seq: Vec<T>) -> Vec<T> {
         result[i] = seq[k].clone();
     }
     result
+}
+
+pub fn get_omega(n: u64, j: u64) -> Fp {
+    let logn = (n as f32).log2() as u32;
+
+    //let domain = EvaluationDomain::<Fb>::new(j, logn);
+    let quotient_poly_degree = (j - 1) as u64;
+
+    // n = 2^k
+    let domain_size = 1u64 << logn;
+    let mut extended_k = logn;
+
+    while (1 << extended_k) < (domain_size * quotient_poly_degree) {
+        extended_k += 1;
+    }
+
+    let mut extended_omega = Fp::root_of_unity();
+
+    // Get extended_omega, the 2^{extended_k}'th root of unity
+    // The loop computes extended_omega = omega^{2 ^ (S - extended_k)}
+    // Notice that extended_omega ^ {2 ^ extended_k} = omega ^ {2^S} = 1.
+    for _ in extended_k..Fp::S {
+        extended_omega = extended_omega.square();
+    }
+    let extended_omega = extended_omega;
+
+    // Get omega, the 2^{k}'th root of unity (i.e. n'th root of unity)
+    // The loop computes omega = extended_omega ^ {2 ^ (extended_k - k)}
+    //           = (omega^{2 ^ (S - extended_k)})  ^ {2 ^ (extended_k - k)}
+    //           = omega ^ {2 ^ (S - k)}.
+    // Notice that omega ^ {2^k} = omega ^ {2^S} = 1.
+
+    let mut omega = extended_omega;
+    for _ in logn..extended_k {
+        omega = omega.square();
+    }
+
+    omega
+}
+
+pub fn poly_eval(values: Vec<Fp>, x: Fp, omega: Fp) -> Fp {
+    let n = values.len();
+
+    let mut acc = Fp::zero();
+
+    let mut omega_i = Fp::one();
+
+    let mut x_n = Fp::one();
+
+    for i in 0..n {
+        let inv_i = (x - omega_i).invert().unwrap();
+
+        let acc_i = (values[i]) * omega_i * inv_i;
+
+        acc += acc_i;
+
+        omega_i *= omega;
+
+        x_n *= x;
+    }
+
+    acc = (x_n - Fp::one()) * Fp::from(n as u64).invert().unwrap() * acc;
+
+    acc
 }
