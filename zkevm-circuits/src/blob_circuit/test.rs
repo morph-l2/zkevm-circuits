@@ -23,16 +23,19 @@ use crate::blob_circuit::util::*;
 #[test]
 fn test_blob_consistency(){
     let batch_commit = Fr::random(OsRng);
+
     let challenge_point = Fp::random(OsRng);
     let blob: Vec<Fp> = (0..4)
-        .map(|_| Fp::random(OsRng))
+        .map(|x| Fp::random(OsRng))
         .collect();
 
-    let omega = get_omega(4, 2);
-    
-    let result = poly_eval(blob.clone(), challenge_point, omega);
+    println!("blob:{:?}",blob);
 
-    // let y_limbs = halo2_base::utils::decompose_biguint::<Fr>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS);
+    // let omega = get_omega(4, 2);
+    let omega = Fp::from(123).pow(&[(FP_S - 2) as u64, 0, 0, 0]);
+
+    let result = poly_eval(blob.clone(), challenge_point, omega);
+    println!("real result:{}", result);
 
     let circuit = BlobCircuit::<Fr> {
         batch_commit: batch_commit,

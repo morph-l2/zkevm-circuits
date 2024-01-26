@@ -26,7 +26,7 @@ use util::*;
 
 // BLOB_WIDTH must be a power of two
 pub const BLOB_WIDTH: usize = 4;
-pub const BLOB_WIDTH_BITS: u32 = 12;
+pub const BLOB_WIDTH_BITS: u32 = 2;
 
 pub const K: usize = 14;
 pub const LOOKUP_BITS: usize = 10;
@@ -126,12 +126,11 @@ impl<F: Field> BlobCircuit<F>{
         challenges: &Challenges<Value<F>>,
     ) -> Vec<AssignedValue<F>> {
 
-       
         let gate = &fp_chip.range.gate;
 
         let one_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
 
-        let zero = gate.load_zero(ctx);
+        // let zero = gate.load_zero(ctx);
 
         //load challenge_point to fp_chip
         let challenge_point_fp = fp_chip.load_private(ctx, Value::known(fe_to_bigint(&self.challenge_point)));
@@ -167,8 +166,10 @@ impl<F: Field> BlobCircuit<F>{
         // let challenge_point_fp = cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &cp_lo, &cp_hi);
 
         // loading roots of unity to fp_chip as constants
+        
         let blob_width_th_root_of_unity =
         Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+        // let blob_width_th_root_of_unity = get_omega(4, 2);
         let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
             .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
             .collect();
@@ -177,17 +178,18 @@ impl<F: Field> BlobCircuit<F>{
             .map(|x| fp_chip.load_constant(ctx, fe_to_biguint(x)))
             .collect::<Vec<_>>();          
 
+        // let roots_of_unity_brp = roots_of_unity;
         // apply bit_reversal_permutation to roots_of_unity
         // spec reference:
         // https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md#bit-reversal-permutation
         //
         let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity);
 
+        
         let mut result = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
         let mut cp_is_not_root_of_unity = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
         let mut barycentric_evaluation = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
         
-        println!("debug----cross");
         for i in 0..BLOB_WIDTH as usize {
             let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i].clone(), &blob[i].clone());
     
@@ -200,9 +202,10 @@ impl<F: Field> BlobCircuit<F>{
             // avoid division by zero
             // safe_denominator_i = denominator_i       (denominator_i != 0)
             // safe_denominator_i = 1                   (denominator_i == 0)
-            let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
-            let is_zero_denominator_i =
-                cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
+            // let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
+            // let is_zero_denominator_i =
+            //     cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
+            let is_zero_denominator_i = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
             let safe_denominator_i =
                 fp_chip.add_no_carry(ctx, &denominator_i, &is_zero_denominator_i.clone());
             let safe_denominator_i = fp_chip.carry_mod(ctx, &safe_denominator_i);
@@ -244,11 +247,14 @@ impl<F: Field> BlobCircuit<F>{
         ctx.constrain_equal(&result.truncation.limbs[1], &partial_result_fp.truncation.limbs[1]);
         ctx.constrain_equal(&result.truncation.limbs[2], &partial_result_fp.truncation.limbs[2]);
 
-        log::trace!(
-            "limb 1 \ninput {:?}\nreconstructed {:?}",
-            partial_result_fp.truncation.limbs[0].value(),
-            result.truncation.limbs[0].value()
-        );
+        // log::trace!(
+        //     "limb 1 \ninput {:?}\nreconstructed {:?}",
+        //     partial_result_fp.truncation.limbs[0].value(),
+        //     result.truncation.limbs[0].value()
+        // );
+        println!("limb 1 \ninput {:?}\nreconstructed {:?}",partial_result_fp.truncation.limbs[0].value(),result.truncation.limbs[0].value());
+        println!("limb 2 \ninput {:?}\nreconstructed {:?}",partial_result_fp.truncation.limbs[1].value(),result.truncation.limbs[1].value());
+        println!("limb 3 \ninput {:?}\nreconstructed {:?}",partial_result_fp.truncation.limbs[2].value(),result.truncation.limbs[2].value());
 
         result.truncation.limbs
 
@@ -299,7 +305,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                     modulus::<Fp>(),
                 );
                 let mut ctx = fp_chip.new_context(region);
-
+                println!("assign in sub");
                 result_limbs = self.assign(&mut ctx, &fp_chip, _challenges);
 
                 Ok(())

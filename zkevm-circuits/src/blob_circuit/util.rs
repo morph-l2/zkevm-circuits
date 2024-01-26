@@ -20,6 +20,7 @@ use halo2_ecc::fields::FieldChip;
 use halo2_ecc::fields::fp::FpConfig;
 use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToScalar, U256};
+use crate::blob_circuit::*;
 
 // assumption: LIMB_BITS >= 85
 pub const LIMB_BITS: usize = 88;
@@ -67,146 +68,146 @@ pub const FP_S: u32 = 32;
 //     (x_lo, x_hi)
 // }
 
-pub fn decompose_lo<F: Field>(
-    x: F
-) -> F {
-    let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
+// pub fn decompose_lo<F: Field>(
+//     x: F
+// ) -> F {
+//     let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
 
-    x_limbs[0] + x_limbs[1] * (F::from(2).pow(&[LIMB_BITS as u64, 0, 0, 0]))
-}
+//     x_limbs[0] + x_limbs[1] * (F::from(2).pow(&[LIMB_BITS as u64, 0, 0, 0]))
+// }
 
-pub fn decompose_hi<F: Field>(
-    x: F
-) -> F {
-    let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
+// pub fn decompose_hi<F: Field>(
+//     x: F
+// ) -> F {
+//     let x_limbs = halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS);
 
-    x_limbs[2]
-}
+//     x_limbs[2]
+// }
 
-pub fn decompose_to_lo_hi<F: Field>(
-    ctx: &mut Context<F>,
-    range: &RangeConfig<F>,
-    x: AssignedValue<F>,
-) -> (AssignedValue<F>, AssignedValue<F>) {
+// pub fn decompose_to_lo_hi<F: Field>(
+//     ctx: &mut Context<F>,
+//     range: &RangeConfig<F>,
+//     x: AssignedValue<F>,
+// ) -> (AssignedValue<F>, AssignedValue<F>) {
 
-    let x_lo =
-        range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_lo(x)));
+//     let x_lo =
+//         range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_lo(x)));
 
-    range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
+//     range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
 
-    let x_hi = range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_hi(x)));
+//     let x_hi = range.gate.load_witness(ctx, x.value().copied().map(|x| decompose_hi(x)));
 
-    range.range_check(ctx, &x_hi.clone(), FR_MODULUS_BITS - LIMB_BITS * 2);
+//     range.range_check(ctx, &x_hi.clone(), FR_MODULUS_BITS - LIMB_BITS * 2);
 
-    let mut sum = range.gate.mul(
-        ctx,
-        QuantumCell::Existing(x_hi),
-        Constant(F::from(2).pow(&[LIMB_BITS as u64 * 2, 0, 0, 0])),
-    );
-    sum = range.gate.add(ctx, QuantumCell::Existing(sum), QuantumCell::Existing(x_lo));
+//     let mut sum = range.gate.mul(
+//         ctx,
+//         QuantumCell::Existing(x_hi),
+//         Constant(F::from(2).pow(&[LIMB_BITS as u64 * 2, 0, 0, 0])),
+//     );
+//     sum = range.gate.add(ctx, QuantumCell::Existing(sum), QuantumCell::Existing(x_lo));
 
-    ctx.constrain_equal(&sum, &x);
+//     ctx.constrain_equal(&sum, &x);
 
-    (x_lo, x_hi)
-}
+//     (x_lo, x_hi)
+// }
 
-pub fn to_bytes<F: Field>(
-    x: F
-) -> [u8;32] {
+// pub fn to_bytes<F: Field>(
+//     x: F
+// ) -> [u8;32] {
 
-    let mut u8_vec = x.to_repr().as_ref().to_vec();
+//     let mut u8_vec = x.to_repr().as_ref().to_vec();
 
-    println!("F vec len:{}", u8_vec.len());
+//     //println!("F vec len:{}", u8_vec.len());
 
-    if u8_vec.len() < 32 {
-        u8_vec.resize(32, 0);
-    }
+//     if u8_vec.len() < 32 {
+//         u8_vec.resize(32, 0);
+//     }
 
-    let u8_array: [u8; 32] = u8_vec.as_slice().try_into().unwrap_or_else(|_| {
-        panic!("Failed to convert Vec to array.");
-    });
+//     let u8_array: [u8; 32] = u8_vec.as_slice().try_into().unwrap_or_else(|_| {
+//         panic!("Failed to convert Vec to array.");
+//     });
     
-    u8_array
-}
+//     u8_array
+// }
 
 
-pub fn cross_field_load_private<F: Field>(
-    ctx: &mut Context<F>,
-    fq_chip: &FpConfig<F, Fp>,
-    range: &RangeConfig<F>,
-    x_lo: &AssignedValue<F>,
-    x_hi: &AssignedValue<F>,
-) -> CRTInteger<F> {
+// pub fn cross_field_load_private<F: Field>(
+//     ctx: &mut Context<F>,
+//     fq_chip: &FpConfig<F, Fp>,
+//     range: &RangeConfig<F>,
+//     x_lo: &AssignedValue<F>,
+//     x_hi: &AssignedValue<F>,
+// ) -> CRTInteger<F> {
 
-    let x_lo_fp = x_lo.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap());
+//     let x_lo_fp = x_lo.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap());
     
-    let x_hi_fp = x_hi.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap() * Fp::from(2).pow(&[(LIMB_BITS * 2) as u64, 0, 0, 0]));
+//     let x_hi_fp = x_hi.value().copied().map(|x| Fp::from_bytes(&to_bytes(x)).unwrap() * Fp::from(2).pow(&[(LIMB_BITS * 2) as u64, 0, 0, 0]));
 
-    let x_fp = x_lo_fp * x_hi_fp;
+//     let x_fp = x_lo_fp + x_hi_fp;
 
-    range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
-    range.range_check(ctx, &x_hi.clone(), FP_MODULUS_BITS - LIMB_BITS * 2);
+//     range.range_check(ctx, &x_lo.clone(), LIMB_BITS * 2);
+//     range.range_check(ctx, &x_hi.clone(), FP_MODULUS_BITS - LIMB_BITS * 2);
 
-    let x_fp = fq_chip.load_private(ctx, FpConfig::<F, Fp>::fe_to_witness(&x_fp));
-    cross_field_constrain_equal(ctx, &fq_chip.range().gate, x_lo, x_hi, &x_fp);
-    x_fp
-}
+//     let x_fp = fq_chip.load_private(ctx, FpConfig::<F, Fp>::fe_to_witness(&x_fp));
+//     cross_field_constrain_equal(ctx, &fq_chip.range().gate, x_lo, x_hi, &x_fp);
+//     x_fp
+// }
 
-/*
-given x_fp, a ProperCrtUint<Fp> in the target field Fp,
-and its decomposition x_lo and x_hi in the native field F,
-constrains x_lo and x_hi to be equal to the decomposition of x_fp
-*/
-pub fn cross_field_constrain_equal<F: Field>(
-    ctx: &mut Context<F>,
-    gate: &FlexGateConfig<F>,
-    x_lo: &AssignedValue<F>,
-    x_hi: &AssignedValue<F>,
-    x_fp: &CRTInteger<F>,
-) {
-    let x_fp_limbs = x_fp.limbs();
+// /*
+// given x_fp, a ProperCrtUint<Fp> in the target field Fp,
+// and its decomposition x_lo and x_hi in the native field F,
+// constrains x_lo and x_hi to be equal to the decomposition of x_fp
+// */
+// pub fn cross_field_constrain_equal<F: Field>(
+//     ctx: &mut Context<F>,
+//     gate: &FlexGateConfig<F>,
+//     x_lo: &AssignedValue<F>,
+//     x_hi: &AssignedValue<F>,
+//     x_fp: &CRTInteger<F>,
+// ) {
+//     let x_fp_limbs = x_fp.limbs();
 
-    // check x_lo
-    let mut sum = gate.load_zero(ctx);
-    let mut mul = gate.load_constant(ctx, F::from(1));
-    let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
-    for i in 0..2 {
-        let limb = x_fp_limbs[i];
-        sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
-        mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
-    }
-    ctx.constrain_equal(&sum, &x_lo);
+//     // check x_lo
+//     let mut sum = gate.load_zero(ctx);
+//     let mut mul = gate.load_constant(ctx, F::from(1));
+//     let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
+//     for i in 0..2 {
+//         let limb = x_fp_limbs[i];
+//         sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
+//         mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
+//     }
+//     ctx.constrain_equal(&sum, &x_lo);
 
-    //check x_hi
-    let mut sum = gate.load_zero(ctx);
-    let mut mul = gate.load_constant(ctx, F::from(1));
-    let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
-    for i in 2..NUM_LIMBS {
-        let limb = x_fp_limbs[i];
-        sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
-        mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
-    }
-    ctx.constrain_equal(&sum, &x_hi);
-}
+//     //check x_hi
+//     let mut sum = gate.load_zero(ctx);
+//     let mut mul = gate.load_constant(ctx, F::from(1));
+//     let limb_multiplier = gate.load_constant(ctx, F::from_u128(2u128.pow(LIMB_BITS as u32)));
+//     for i in 2..NUM_LIMBS {
+//         let limb = x_fp_limbs[i];
+//         sum = gate.mul_add(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(mul), QuantumCell::Existing(sum));
+//         mul = gate.mul(ctx, QuantumCell::Existing(limb_multiplier), QuantumCell::Existing(mul));
+//     }
+//     ctx.constrain_equal(&sum, &x_hi);
+// }
 
 /*
 given x_fp, a ProperCrtUint<Fp> in the target field Fp,
 returns an AssignedValue 1 if x_fp is zero, and 0 otherwise.
 */
-pub fn fp_is_zero<F: Field>(
-    ctx: &mut Context<F>,
-    gate: &FlexGateConfig<F>,
-    x_fp: &CRTInteger<F>,
-) -> AssignedValue<F> {
-    let zero = gate.load_zero(ctx);
-    let x_fp_limbs = x_fp.limbs();
-    let mut partial_and = gate.load_constant(ctx, F::from(1));
-    for limb in x_fp_limbs {
-        let is_zero_limb = gate.is_equal(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(zero));
-        partial_and = gate.and(ctx, QuantumCell::Existing(is_zero_limb), Constant(F::from(1)));
-    }
-    partial_and
-}
+// pub fn fp_is_zero<F: Field>(
+//     ctx: &mut Context<F>,
+//     gate: &FlexGateConfig<F>,
+//     x_fp: &CRTInteger<F>,
+// ) -> AssignedValue<F> {
+//     let zero = gate.load_zero(ctx);
+//     let x_fp_limbs = x_fp.limbs();
+//     let mut partial_and = gate.load_constant(ctx, F::from(1));
+//     for limb in x_fp_limbs {
+//         let is_zero_limb = gate.is_equal(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(zero));
+//         partial_and = gate.and(ctx, QuantumCell::Existing(is_zero_limb), Constant(F::from(1)));
+//     }
+//     partial_and
+// }
 
 /*
 raises x in Fp to the power of pow,
@@ -297,23 +298,65 @@ pub fn poly_eval(values: Vec<Fp>, x: Fp, omega: Fp) -> Fp {
 
     let mut acc = Fp::zero();
 
-    let mut omega_i = Fp::one();
+    let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
+        .map(|i| omega.pow(&[i as u64, 0, 0, 0]))
+        .collect();
+
+    let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity);     
+    // let roots_of_unity_brp = roots_of_unity;   
 
     let mut x_n = Fp::one();
 
     for i in 0..n {
-        let inv_i = (x - omega_i).invert().unwrap();
+        if x == roots_of_unity_brp[i]{
+            return values[i];
+        }
+        let inv_i = (x - roots_of_unity_brp[i]).invert().unwrap();
 
-        let acc_i = (values[i]) * omega_i * inv_i;
+        let acc_i = (values[i]) * roots_of_unity_brp[i] * inv_i;
 
         acc += acc_i;
-
-        omega_i *= omega;
 
         x_n *= x;
     }
 
     acc = (x_n - Fp::one()) * Fp::from(n as u64).invert().unwrap() * acc;
 
-    acc
+    return acc;
 }
+
+// pub fn poly_eval(values: Vec<Fp>, x: Fp) -> Fp {
+//     let n = values.len();
+
+//     let mut acc = Fp::zero();
+
+//     let blob_width_th_root_of_unity =
+//     Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+
+//     let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
+//         .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
+//         .collect();
+
+//     // let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity);     
+//     let roots_of_unity_brp = roots_of_unity;
+
+//     let mut x_n = Fp::one();
+
+    
+//     for i in 0..n {
+//         // if x == roots_of_unity_brp[i]{
+//         //     return values[i];
+//         // }
+//         let inv_i = (x - roots_of_unity_brp[i]).invert().unwrap();
+
+//         let acc_i = values[i] * roots_of_unity_brp[i] * inv_i;
+
+//         acc += acc_i;
+
+//         x_n *= x;
+//     }
+
+//     acc = (x_n - Fp::one()) * Fp::from(n as u64).invert().unwrap() * acc;
+
+//     return acc;
+// }
