@@ -1,8 +1,7 @@
 use halo2_base::{
     Context,
     utils::{
-        ScalarField, bigint_to_fe, biguint_to_fe, bit_length, decompose_bigint_option, decompose_biguint,
-        fe_to_biguint, fe_to_bigint, modulus,}, 
+        ScalarField, fe_to_biguint, modulus,}, 
     gates::{range::{self, RangeConfig}, GateInstructions}, AssignedValue
 };
 
@@ -102,7 +101,7 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             &num_advice,
             &[17], // num lookup advice
             1,     // num fixed
-            13,    // lookup bits
+            10,    // lookup bits
             limb_bits,
             num_limbs,
             modulus::<Fp>(),
@@ -124,23 +123,24 @@ impl<F: Field> BlobCircuit<F>{
         ctx: &mut Context<F>,
         fp_chip: &FpConfig<F, Fp>,
         challenges: &Challenges<Value<F>>,
-    ) -> Vec<AssignedValue<F>> {
+    ) -> Result<(), Error> {
 
         let gate = &fp_chip.range.gate;
 
         let one_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
 
-        // let zero = gate.load_zero(ctx);
+        let zero = gate.load_zero(ctx);
 
         //load challenge_point to fp_chip
-        let challenge_point_fp = fp_chip.load_private(ctx, Value::known(fe_to_bigint(&self.challenge_point)));
+        let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.challenge_point));
 
-        let partial_result_fp = fp_chip.load_private(ctx, Value::known(fe_to_bigint(&self.partial_result)));
+        let partial_result_fp = load_private(fp_chip, ctx, Value::known(self.partial_result));
+
 
         let blob = self
             .partial_blob
             .iter()
-            .map(|x| fp_chip.load_private(ctx, Value::known(fe_to_bigint(x))))
+            .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
             .collect::<Vec<_>>();
 
         // === STEP 2: compute the barycentric formula ===
@@ -185,7 +185,6 @@ impl<F: Field> BlobCircuit<F>{
         //
         let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity);
 
-        
         let mut result = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
         let mut cp_is_not_root_of_unity = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
         let mut barycentric_evaluation = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
@@ -202,10 +201,10 @@ impl<F: Field> BlobCircuit<F>{
             // avoid division by zero
             // safe_denominator_i = denominator_i       (denominator_i != 0)
             // safe_denominator_i = 1                   (denominator_i == 0)
-            // let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
-            // let is_zero_denominator_i =
-            //     cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
-            let is_zero_denominator_i = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
+            let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
+            let is_zero_denominator_i =
+                cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
+            // let is_zero_denominator_i = fp_chip.load_private(ctx, Value::known(fe_to_bigint(&Fp::zero())));
             let safe_denominator_i =
                 fp_chip.add_no_carry(ctx, &denominator_i, &is_zero_denominator_i.clone());
             let safe_denominator_i = fp_chip.carry_mod(ctx, &safe_denominator_i);
@@ -241,7 +240,6 @@ impl<F: Field> BlobCircuit<F>{
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
         
-        println!("finish assign");
 
         ctx.constrain_equal(&result.truncation.limbs[0], &partial_result_fp.truncation.limbs[0]);
         ctx.constrain_equal(&result.truncation.limbs[1], &partial_result_fp.truncation.limbs[1]);
@@ -256,7 +254,7 @@ impl<F: Field> BlobCircuit<F>{
         println!("limb 2 \ninput {:?}\nreconstructed {:?}",partial_result_fp.truncation.limbs[1].value(),result.truncation.limbs[1].value());
         println!("limb 3 \ninput {:?}\nreconstructed {:?}",partial_result_fp.truncation.limbs[2].value(),result.truncation.limbs[2].value());
 
-        result.truncation.limbs
+        Ok(())
 
     }
 }
@@ -280,7 +278,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (100,100)
+        (10000,10000)
     }
 
 
@@ -292,7 +290,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         layouter: &mut impl Layouter<F>,
     ) -> Result<(), Error> {
 
-        let mut result_limbs = vec![];
         println!("--------begin assign--------");
         layouter.assign_region(
             || "assign blob circuit", 
@@ -305,13 +302,15 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                     modulus::<Fp>(),
                 );
                 let mut ctx = fp_chip.new_context(region);
-                println!("assign in sub");
-                result_limbs = self.assign(&mut ctx, &fp_chip, _challenges);
+
+                self.assign(&mut ctx, &fp_chip, _challenges);
+
+                ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
                 Ok(())
             },
         )?;
-
+        println!("finish assign");
         // layouter.constrain_instance(result_limbs[0].cell(), config.instance, 0);
         // layouter.constrain_instance(result_limbs[1].cell(), config.instance, 1);
         // layouter.constrain_instance(result_limbs[2].cell(), config.instance, 2);

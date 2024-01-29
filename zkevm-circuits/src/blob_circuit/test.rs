@@ -26,7 +26,7 @@ fn test_blob_consistency(){
 
     let challenge_point = Fp::random(OsRng);
     let blob: Vec<Fp> = (0..4)
-        .map(|x| Fp::random(OsRng))
+        .map(|_| Fp::random(OsRng))
         .collect();
 
     println!("blob:{:?}",blob);
