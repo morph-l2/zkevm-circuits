@@ -24,8 +24,8 @@ mod dev;
 use util::*;
 
 // BLOB_WIDTH must be a power of two
-pub const BLOB_WIDTH: usize = 4;
-pub const BLOB_WIDTH_BITS: u32 = 2;
+pub const BLOB_WIDTH: usize = 4096;
+pub const BLOB_WIDTH_BITS: u32 = 12;
 
 pub const K: usize = 14;
 pub const LOOKUP_BITS: usize = 10;
