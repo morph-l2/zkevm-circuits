@@ -15,7 +15,7 @@ use halo2_proofs::{
 use rand::{Rng, RngCore};
 use std::marker::PhantomData;
 use bls12_381::Scalar as Fp;
-use crate::blob_circuit::BlobCircuit;
+use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
 use rand::rngs::OsRng;
 
 use crate::blob_circuit::util::*;
@@ -37,6 +37,7 @@ fn test_blob_consistency(){
     let result = poly_eval(blob.clone(), challenge_point, omega);
     println!("real result:{}", result);
 
+
     let circuit = BlobCircuit::<Fr> {
         batch_commit: batch_commit,
         challenge_point: challenge_point,
@@ -46,7 +47,9 @@ fn test_blob_consistency(){
         _marker: PhantomData,
     };    
 
-    let prover = match MockProver::<Fr>::run(20, &circuit, vec![]) {
+    let instance = circuit.instance();
+
+    let prover = match MockProver::<Fr>::run(20, &circuit, instance) {
         Ok(prover) => prover,
         Err(e) => panic!("{e:#?}"),
     };

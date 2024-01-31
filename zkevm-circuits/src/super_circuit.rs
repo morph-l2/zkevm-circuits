@@ -618,6 +618,8 @@ impl<
         instance.extend_from_slice(&self.state_circuit.instance());
         instance.extend_from_slice(&self.exp_circuit.instance());
         instance.extend_from_slice(&self.evm_circuit.instance());
+        instance.extend_from_slice(&self.blob_circuit.instance());
+
 
         instance
     }
