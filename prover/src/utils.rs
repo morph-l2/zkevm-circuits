@@ -4,12 +4,10 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
-use eth_types::{l2_types::BlockTrace, Address};
+use eth_types::{l2_types::BlockTrace, Address, U256};
 use git_version::git_version;
 use halo2_proofs::{
-    halo2curves::bn256::{Bn256, Fr},
-    poly::kzg::commitment::ParamsKZG,
-    SerdeFormat,
+    halo2curves::bn256::{Bn256, Fr}, plonk::Challenge, poly::kzg::commitment::ParamsKZG, SerdeFormat
 };
 use log::LevelFilter;
 use log4rs::{
@@ -163,6 +161,20 @@ pub fn chunk_trace_to_witness_block(mut chunk_trace: Vec<BlockTrace>) -> Result<
     check_batch_capacity(&mut chunk_trace)?;
 
     block_traces_to_witness_block(&chunk_trace)
+}
+
+pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>, batch_commit: U256, challenge_point: U256, index: usize, partial_result: U256 ) -> Result<Block<Fr>> {
+    match chunk_trace_to_witness_block(chunk_trace) {
+        Ok(block) => {
+            let mut block = block;
+            block.batch_commit = batch_commit;
+            block.challenge_point = challenge_point;
+            block.index = index;
+            block.partial_result = partial_result;
+            Ok(block)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 // Return the output dir.

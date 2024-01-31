@@ -1,5 +1,6 @@
+use bls12_381::Fp;
 use ethers_core::types::Signature;
-use std::collections::{BTreeMap, HashMap};
+use std::{collections::{BTreeMap, HashMap}, ptr::null};
 
 #[cfg(any(feature = "test", test))]
 use crate::evm_circuit::{detect_fixed_table_tags, EvmCircuit};
@@ -72,6 +73,14 @@ pub struct Block<F> {
     pub start_l1_queue_index: u64,
     /// IO to/from precompile calls.
     pub precompile_events: PrecompileEvents,
+    /// batch_commit
+    pub batch_commit: Word,
+    /// challenge_point
+    pub challenge_point: Word,
+    /// index
+    pub index: usize,
+    /// partial_result
+    pub partial_result: Word,
 }
 
 /// ...
@@ -565,6 +574,10 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
+        batch_commit: Word::zero(),
+        challenge_point: Word::zero(),
+        index: 0,
+        partial_result: Word::zero(),
     })
 }
 

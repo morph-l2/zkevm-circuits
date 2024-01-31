@@ -81,6 +81,7 @@ use crate::{
         TxTable, U16Table, U8Table,
     },
     tx_circuit::{TxCircuit, TxCircuitConfig, TxCircuitConfigArgs},
+    blob_circuit::{BlobCircuit, BlobCircuitConfig, BlobCircuitConfigArgs},
     util::{circuit_stats, log2_ceil, Challenges, SubCircuit, SubCircuitConfig},
     witness::{block_convert, Block, Transaction},
 };
@@ -130,6 +131,7 @@ pub struct SuperCircuitConfig<F: Field> {
     /// Mpt Circuit
     #[cfg(feature = "zktrie")]
     mpt_circuit: MptCircuitConfig<F>,
+    blob_circuit: BlobCircuitConfig<F>,
 }
 
 /// Circuit configuration arguments
@@ -362,7 +364,7 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
             meta,
             EccCircuitConfigArgs {
                 ecc_table,
-                challenges: challenges_expr,
+                challenges: challenges_expr.clone(),
             },
         );
         log_circuit_info(meta, "ecc circuit");
@@ -371,6 +373,13 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
         if meta.max_phase() != 0 {
             log::warn!("max_phase: {}", meta.max_phase());
         }
+
+        let blob_circuit = BlobCircuitConfig::new(
+            meta, 
+            BlobCircuitConfigArgs { 
+                challenges: challenges_expr, 
+            },
+        );
 
         SuperCircuitConfig {
             block_table,
@@ -395,6 +404,7 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
             ecc_circuit,
             #[cfg(feature = "zktrie")]
             mpt_circuit,
+            blob_circuit,
         }
     }
 }
@@ -449,6 +459,8 @@ pub struct SuperCircuit<
     /// Mpt Circuit
     #[cfg(feature = "zktrie")]
     pub mpt_circuit: MptCircuit<F>,
+    /// Blob Circuit
+    pub blob_circuit: BlobCircuit<F>,
 }
 
 impl<
@@ -572,6 +584,7 @@ impl<
         let rlp_circuit = RlpCircuit::new_from_block(block);
         let sig_circuit = SigCircuit::new_from_block(block);
         let ecc_circuit = EccCircuit::new_from_block(block);
+        let blob_circuit = BlobCircuit::new_from_block(block);
         #[cfg(feature = "zktrie")]
         let mpt_circuit = MptCircuit::new_from_block(block);
         SuperCircuit::<Fr, MAX_TXS, MAX_CALLDATA, MAX_INNER_BLOCKS, MOCK_RANDOMNESS> {
@@ -590,6 +603,7 @@ impl<
             ecc_circuit,
             #[cfg(feature = "zktrie")]
             mpt_circuit,
+            blob_circuit,
         }
     }
 

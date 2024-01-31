@@ -2447,7 +2447,7 @@ dependencies = [
 [[package]]
 name = "halo2-base"
 version = "0.2.2"
-source = "git+https://github.com/dongliangCai/halo2-lib.git?branch=sync-blob-gadget#a7f6743192e162b38b0c8d540c36d585839b8947"
+source = "git+https://github.com/dongliangCai/halo2-lib.git?branch=sync-blob-gadget#232ae85a852475c86f449af1e3bb1945c24973f1"
 dependencies = [
  "ff 0.12.1",
  "halo2_proofs",
@@ -2500,7 +2500,7 @@ dependencies = [
 [[package]]
 name = "halo2-ecc"
 version = "0.2.2"
-source = "git+https://github.com/dongliangCai/halo2-lib.git?branch=sync-blob-gadget#a7f6743192e162b38b0c8d540c36d585839b8947"
+source = "git+https://github.com/dongliangCai/halo2-lib.git?branch=sync-blob-gadget#232ae85a852475c86f449af1e3bb1945c24973f1"
 dependencies = [
  "ff 0.12.1",
  "group 0.12.1",

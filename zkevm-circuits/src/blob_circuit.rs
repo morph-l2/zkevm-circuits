@@ -2,20 +2,20 @@ use halo2_base::{
     Context,
     utils::{
         ScalarField, fe_to_biguint, modulus,}, 
-    gates::{range::{self, RangeConfig}, GateInstructions}, AssignedValue
+    gates::GateInstructions,
 };
 
 use halo2_ecc::fields::{fp::{FpConfig, FpStrategy}, FieldChip};
 use halo2_proofs::{
-    circuit::{Layouter, Region, Value},
-    plonk::{Advice, Column, ConstraintSystem, Error, Circuit, Expression, Instance},
+    circuit::{Layouter, Value},
+    plonk::{ConstraintSystem, Error, Expression},
 };
 
 use bls12_381::Scalar as Fp;
 use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
-use std::{marker::PhantomData, ops::Add};
-use eth_types::{Field, ToScalar, U256};
-use rand::{rngs::OsRng, Rng};
+use std::marker::PhantomData;
+use eth_types::Field;
+use rand::rngs::OsRng;
 
 mod util;
 mod test;
@@ -76,6 +76,12 @@ impl<F: Field> BlobCircuit<F> {
             partial_result,
             _marker: PhantomData::default(),
         }
+    }
+
+    pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
+        (0..BLOB_WIDTH)
+            .map(|_| Fp::random(OsRng))
+            .collect()
     }
 }
 
@@ -266,13 +272,11 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
     fn new_from_block(block: &Block<F>) -> Self {
         Self{
-            batch_commit: F::random(OsRng), 
-            challenge_point: Fp::random(OsRng),
-            index: 0,
-            partial_blob: (0..BLOB_WIDTH)
-                .map(|_| Fp::random(OsRng))
-                .collect(),
-            partial_result: Fp::random(OsRng),
+            batch_commit: F::from_u128(block.batch_commit.as_u128()), 
+            challenge_point: Fp::from_u128(block.challenge_point.as_u128()),
+            index: block.index,
+            partial_blob: Self::partial_blob(block),
+            partial_result: Fp::from_u128(block.partial_result.as_u128()),
             _marker: Default::default(),
         }
     }
@@ -280,7 +284,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
         (10000,10000)
     }
-
 
 
     fn synthesize_sub(
