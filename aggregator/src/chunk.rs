@@ -26,6 +26,10 @@ pub struct ChunkHash {
     pub withdraw_root: H256,
     /// the data hash of this chunk
     pub data_hash: H256,
+    // bls challenge point
+    pub challenge_point: H256,
+    // bls partial result
+    pub partial_result: H256,
     /// if the chunk is a padded chunk
     pub is_padding: bool,
 }
