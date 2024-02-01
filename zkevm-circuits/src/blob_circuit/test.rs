@@ -33,7 +33,7 @@ fn test_blob_consistency(){
 
     // let omega = get_omega(4, 2);
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
-
+    println!("omega:{}", omega);
     let result = poly_eval(blob.clone(), challenge_point, omega);
     println!("real result:{}", result);
 
@@ -56,6 +56,7 @@ fn test_blob_consistency(){
 
     assert_eq!(prover.verify(), Ok(()));
 }
+
 
 
 

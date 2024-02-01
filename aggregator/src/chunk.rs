@@ -1,9 +1,11 @@
 //! This module implements `Chunk` related data types.
 //! A chunk is a list of blocks.
-use eth_types::{ToBigEndian, H256};
-use ethers_core::utils::keccak256;
+use eth_types::{ToBigEndian, H256, U256, ToLittleEndian};
+use ethers_core::utils::{keccak256, rlp::Encodable};
 use halo2_proofs::halo2curves::bn256::Fr;
+use bls12_381::Scalar as Fp;
 use serde::{Deserialize, Serialize};
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
 use std::iter;
 use zkevm_circuits::witness::Block;
 
@@ -27,9 +29,9 @@ pub struct ChunkHash {
     /// the data hash of this chunk
     pub data_hash: H256,
     // bls challenge point
-    pub challenge_point: H256,
+    pub challenge_point: U256,
     // bls partial result
-    pub partial_result: H256,
+    pub partial_result: U256,
     /// if the chunk is a padded chunk
     pub is_padding: bool,
 }
@@ -94,12 +96,19 @@ impl ChunkHash {
             .map(|(_, b_ctx)| b_ctx.eth_block.state_root)
             .unwrap_or(H256(block.prev_state_root.to_be_bytes()));
 
+        //TODO:compute partial_result from witness block;
+        // let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
+
+        // let partial_result = polyeval()
+
         Self {
             chain_id: block.chain_id,
             prev_state_root: H256(block.prev_state_root.to_be_bytes()),
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
             data_hash,
+            challenge_point: block.challenge_point,
+            partial_result: block.partial_result,
             is_padding,
         }
     }
@@ -115,12 +124,18 @@ impl ChunkHash {
         r.fill_bytes(&mut withdraw_root);
         let mut data_hash = [0u8; 32];
         r.fill_bytes(&mut data_hash);
+        let mut challenge_point = [0u8; 32];
+        r.fill_bytes(&mut challenge_point);
+        let mut partial_result = [0u8; 32];
+        r.fill_bytes(&mut partial_result);
         Self {
             chain_id: 0,
             prev_state_root: prev_state_root.into(),
             post_state_root: post_state_root.into(),
             withdraw_root: withdraw_root.into(),
             data_hash: data_hash.into(),
+            challenge_point: challenge_point.into(),
+            partial_result: partial_result.into(),
             is_padding: false,
         }
     }
@@ -138,6 +153,8 @@ impl ChunkHash {
             post_state_root: previous_chunk.post_state_root,
             withdraw_root: previous_chunk.withdraw_root,
             data_hash: previous_chunk.data_hash,
+            challenge_point: previous_chunk.challenge_point,
+            partial_result: previous_chunk.partial_result,
             is_padding: true,
         }
     }
@@ -161,4 +178,22 @@ impl ChunkHash {
         ]
         .concat()
     }
+
+    /// decompose challenge_point
+    pub fn challenge_point(&self) -> Vec<Fr>{
+        println!("cp:{:?}",self.challenge_point.to_le_bytes());
+        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
+        println!("cpfe{}", cp_fe);
+        decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88)
+
+    }
+
+    /// decompose partial_result
+    pub fn partial_result(&self) -> Vec<Fr>{
+        println!("partial_result:{:?}", self.partial_result.to_le_bytes());
+        let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
+        println!("prfe{}", pr_fe);
+        decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88)
+    }
+
 }
