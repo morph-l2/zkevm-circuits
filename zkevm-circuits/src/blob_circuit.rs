@@ -14,7 +14,7 @@ use halo2_proofs::{
 use bls12_381::Scalar as Fp;
 use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
 use std::marker::PhantomData;
-use eth_types::Field;
+use eth_types::{Field, H256, ToBigEndian, ToScalar};
 use rand::rngs::OsRng;
 
 mod util;
@@ -276,11 +276,11 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
     fn new_from_block(block: &Block<F>) -> Self {
         Self{
-            batch_commit: F::from_u128(block.batch_commit.as_u128()), 
-            challenge_point: Fp::from_u128(block.challenge_point.as_u128()),
+            batch_commit: block.batch_commit.to_scalar().unwrap(), 
+            challenge_point: Fp::from_bytes(&H256(block.challenge_point.to_be_bytes()).into()).unwrap(),
             index: block.index,
             partial_blob: Self::partial_blob(block),
-            partial_result: Fp::from_u128(block.partial_result.as_u128()),
+            partial_result: Fp::from_bytes(&H256(block.partial_result.to_be_bytes()).into()).unwrap(),
             _marker: Default::default(),
         }
     }

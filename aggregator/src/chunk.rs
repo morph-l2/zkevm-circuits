@@ -29,9 +29,9 @@ pub struct ChunkHash {
     /// the data hash of this chunk
     pub data_hash: H256,
     // bls challenge point
-    pub challenge_point: U256,
+    pub challenge_point: H256,
     // bls partial result
-    pub partial_result: U256,
+    pub partial_result: H256,
     /// if the chunk is a padded chunk
     pub is_padding: bool,
 }
@@ -107,8 +107,8 @@ impl ChunkHash {
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
             data_hash,
-            challenge_point: block.challenge_point,
-            partial_result: block.partial_result,
+            challenge_point: H256(block.challenge_point.to_be_bytes()),
+            partial_result: H256(block.partial_result.to_be_bytes()),
             is_padding,
         }
     }
@@ -124,10 +124,15 @@ impl ChunkHash {
         r.fill_bytes(&mut withdraw_root);
         let mut data_hash = [0u8; 32];
         r.fill_bytes(&mut data_hash);
-        let mut challenge_point = [0u8; 32];
-        r.fill_bytes(&mut challenge_point);
-        let mut partial_result = [0u8; 32];
-        r.fill_bytes(&mut partial_result);
+        let mut buf = [0u8; 64];
+        r.fill_bytes(&mut buf);
+        let mut challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
+        // println!("random cp le bytes{:?}", challenge_point);
+        // println!("random cp{}", Fp::from_bytes_wide(&buf));
+        let mut buf1 = [0u8; 64];
+        r.fill_bytes(&mut buf1);
+        let mut partial_result = Fp::from_bytes_wide(&buf1).to_bytes();
+        // r.fill_bytes(&mut partial_result);
         Self {
             chain_id: 0,
             prev_state_root: prev_state_root.into(),
@@ -181,18 +186,17 @@ impl ChunkHash {
 
     /// decompose challenge_point
     pub fn challenge_point(&self) -> Vec<Fr>{
-        println!("cp:{:?}",self.challenge_point.to_le_bytes());
-        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
-        println!("cpfe{}", cp_fe);
+        let cp_fe = Fp::from_bytes(&self.challenge_point.into()).unwrap();
+        // println!("cp le bytes{:?}", self.challenge_point);
+        // println!("cpfe{}", cp_fe);
         decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88)
 
     }
 
     /// decompose partial_result
     pub fn partial_result(&self) -> Vec<Fr>{
-        println!("partial_result:{:?}", self.partial_result.to_le_bytes());
-        let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
-        println!("prfe{}", pr_fe);
+        let pr_fe = Fp::from_bytes(&self.partial_result.into()).unwrap();
+        // println!("prfe{}", pr_fe);
         decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88)
     }
 

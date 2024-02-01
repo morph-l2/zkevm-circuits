@@ -165,9 +165,9 @@ impl CircuitExt<Fr> for MockChunkCircuit {
 #[test]
 fn test_mock_chunk_prover() {
     test_mock_chunk_prover_helper(true, true);
-    // test_mock_chunk_prover_helper(true, false);
-    // test_mock_chunk_prover_helper(false, true);
-    // test_mock_chunk_prover_helper(false, false);
+    test_mock_chunk_prover_helper(true, false);
+    test_mock_chunk_prover_helper(false, true);
+    test_mock_chunk_prover_helper(false, false);
 }
 
 fn test_mock_chunk_prover_helper(hash_accumulator: bool, is_padding: bool) {
