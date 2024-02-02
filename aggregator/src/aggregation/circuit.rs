@@ -27,7 +27,7 @@ use zkevm_circuits::util::Challenges;
 
 use crate::{
     batch::BatchHash,
-    constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS},
+    constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN},
     core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check},
     util::parse_hash_digest_cells,
     ConfigParams,
@@ -71,7 +71,7 @@ impl AggregationCircuit {
             let chunk_hash_bytes = chunk.public_input_hash();
             let snark_hash_bytes = &snark.instances[0];
 
-            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN);
+            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN+BLOB_POINT_LEN);
 
             for i in 0..DIGEST_LEN {
                 // for each snark,

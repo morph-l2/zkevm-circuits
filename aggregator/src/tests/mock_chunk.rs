@@ -12,8 +12,7 @@ use snark_verifier_sdk::CircuitExt;
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    constants::{ACC_LEN, DIGEST_LEN},
-    ChunkHash, RlcConfig, LOG_DEGREE,
+    constants::{ACC_LEN, DIGEST_LEN}, ChunkHash, RlcConfig, BLOB_POINT_LEN, LOG_DEGREE
 };
 
 /// This config is used to compute RLCs for bytes.
@@ -146,7 +145,7 @@ impl CircuitExt<Fr> for MockChunkCircuit {
     /// 32 elements from digest and 6 elements from x/y
     fn num_instance(&self) -> Vec<usize> {
         let acc_len = if self.has_accumulator { ACC_LEN } else { 0 };
-        vec![DIGEST_LEN + acc_len + 6]
+        vec![DIGEST_LEN + acc_len + BLOB_POINT_LEN]
     }
 
     /// return vec![acc | public input hash | challenge_point_limbs | partial_result_limbs]

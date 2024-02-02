@@ -39,6 +39,9 @@ pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
 /// An decomposed accumulator consists of 12 field elements
 pub(crate) const ACC_LEN: usize = 12;
 
+/// Blob information consists of 6 field elements
+pub(crate) const BLOB_POINT_LEN: usize = 6;
+
 /// number of limbs when decomposing a field element in the ECC chip
 pub(crate) const LIMBS: usize = 3;
 /// number of bits in each limb in the ECC chip
