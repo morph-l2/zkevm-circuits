@@ -189,7 +189,7 @@ impl ChunkHash {
 
     /// decompose challenge_point
     pub fn challenge_point(&self) -> Vec<Fr>{
-        let cp_fe = Fp::from_bytes(&self.challenge_point.into()).unwrap();
+        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
         // println!("cp le bytes{:?}", self.challenge_point);
         // println!("cpfe{}", cp_fe);
         decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88)
@@ -198,7 +198,7 @@ impl ChunkHash {
 
     /// decompose partial_result
     pub fn partial_result(&self) -> Vec<Fr>{
-        let pr_fe = Fp::from_bytes(&self.partial_result.into()).unwrap();
+        let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
         // println!("prfe{}", pr_fe);
         decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88)
     }
