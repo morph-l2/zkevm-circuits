@@ -29,9 +29,9 @@ pub struct ChunkHash {
     /// the data hash of this chunk
     pub data_hash: H256,
     // bls challenge point
-    pub challenge_point: H256,
+    pub challenge_point: U256,
     // bls partial result
-    pub partial_result: H256,
+    pub partial_result: U256,
     /// if the chunk is a padded chunk
     pub is_padding: bool,
 }
@@ -107,8 +107,8 @@ impl ChunkHash {
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
             data_hash,
-            challenge_point: H256(block.challenge_point.to_be_bytes()),
-            partial_result: H256(block.partial_result.to_be_bytes()),
+            challenge_point: U256::from_little_endian(&block.challenge_point.to_le_bytes()),
+            partial_result: U256::from_little_endian(&block.partial_result.to_le_bytes()),
             is_padding,
         }
     }
@@ -116,6 +116,8 @@ impl ChunkHash {
     /// Sample a chunk hash from random (for testing)
     #[cfg(test)]
     pub(crate) fn mock_random_chunk_hash_for_testing<R: rand::RngCore>(r: &mut R) -> Self {
+        use halo2_proofs::plonk::Challenge;
+
         let mut prev_state_root = [0u8; 32];
         r.fill_bytes(&mut prev_state_root);
         let mut post_state_root = [0u8; 32];
@@ -126,7 +128,8 @@ impl ChunkHash {
         r.fill_bytes(&mut data_hash);
         let mut buf = [0u8; 64];
         r.fill_bytes(&mut buf);
-        let mut challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
+        let challenge_point = Fp::from(123).to_bytes();
+        //let challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
         // println!("random cp le bytes{:?}", challenge_point);
         // println!("random cp{}", Fp::from_bytes_wide(&buf));
         let mut buf1 = [0u8; 64];
