@@ -1,7 +1,8 @@
 //! This module implements related functions that aggregates public inputs of many chunks into a
 //! single one.
 
-use eth_types::{Field, H256, U256};
+use bls12_381::Scalar as Fp;
+use eth_types::{Field, ToLittleEndian, H256, U256};
 use ethers_core::utils::keccak256;
 
 use crate::constants::MAX_AGG_SNARKS;
@@ -130,11 +131,11 @@ impl BatchHash {
         let public_input_hash = keccak256(preimage);
 
         let challenge_point = chunks_with_padding[0].challenge_point;
-        let mut result = chunks_with_padding[0].partial_result;
+        let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
         for i in 1..MAX_AGG_SNARKS - 1 {
-            result = result+chunks_with_padding[i].partial_result;
+            result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
-        
+ 
         Self {
             chain_id: chunks_with_padding[0].chain_id,
             chunks_with_padding: chunks_with_padding.try_into().unwrap(), // safe unwrap
@@ -142,7 +143,7 @@ impl BatchHash {
             public_input_hash: public_input_hash.into(),
             number_of_valid_chunks,
             challenge_point,
-            result,
+            result: U256::from_little_endian(&result.to_bytes()),
         }
     }
 

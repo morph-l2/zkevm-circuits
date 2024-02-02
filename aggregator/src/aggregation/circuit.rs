@@ -230,7 +230,7 @@ impl Circuit<Fr> for AggregationCircuit {
                 },
             )?;
 
-            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * DIGEST_LEN);
+            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * (DIGEST_LEN+BLOB_POINT_LEN));
             (accumulator_instances, snark_inputs)
         };
         end_timer!(timer);
