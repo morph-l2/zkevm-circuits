@@ -12,18 +12,6 @@ eth-types = { path = "../eth-types" }
 #zkevm-circuits = { path = "../zkevm-circuits" }
 digest = "0.7.6"
 strum = "0.24"
-halo2-base = {default-features = false, features = [
-    "halo2-pse",
-    "display",
-], git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce"}
-
-halo2-ecc = {default-features = false, features = [
-    "halo2-pse",
-    "display",
-], git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce"}
-
-bls12_381 = { git = "https://github.com/chengwenxi/bls12_381.git", branch = "eip4844" }
-poseidon = {git = "https://github.com/chengwenxi/halo2-lib.git", branch="0.3.0-ce", package="poseidon"}
 
 rand = "0.8"
 
