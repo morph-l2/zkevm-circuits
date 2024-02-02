@@ -107,8 +107,8 @@ impl ChunkHash {
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
             data_hash,
-            challenge_point: U256::from_little_endian(&block.challenge_point.to_le_bytes()),
-            partial_result: U256::from_little_endian(&block.partial_result.to_le_bytes()),
+            challenge_point: block.challenge_point,
+            partial_result: block.partial_result,
             is_padding,
         }
     }
@@ -128,13 +128,14 @@ impl ChunkHash {
         r.fill_bytes(&mut data_hash);
         let mut buf = [0u8; 64];
         r.fill_bytes(&mut buf);
+        // let challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
         let challenge_point = Fp::from(123).to_bytes();
-        //let challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
-        // println!("random cp le bytes{:?}", challenge_point);
-        // println!("random cp{}", Fp::from_bytes_wide(&buf));
+        println!("cp le bytes{:?}", challenge_point);
+
         let mut buf1 = [0u8; 64];
         r.fill_bytes(&mut buf1);
         let mut partial_result = Fp::from_bytes_wide(&buf1).to_bytes();
+
         // r.fill_bytes(&mut partial_result);
         Self {
             chain_id: 0,
@@ -142,8 +143,8 @@ impl ChunkHash {
             post_state_root: post_state_root.into(),
             withdraw_root: withdraw_root.into(),
             data_hash: data_hash.into(),
-            challenge_point: challenge_point.into(),
-            partial_result: partial_result.into(),
+            challenge_point: U256::from_little_endian(&challenge_point),
+            partial_result: U256::from_little_endian(&partial_result),
             is_padding: false,
         }
     }
@@ -199,7 +200,6 @@ impl ChunkHash {
     /// decompose partial_result
     pub fn partial_result(&self) -> Vec<Fr>{
         let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
-        // println!("prfe{}", pr_fe);
         decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88)
     }
 
