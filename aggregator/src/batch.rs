@@ -1,7 +1,7 @@
 //! This module implements related functions that aggregates public inputs of many chunks into a
 //! single one.
 
-use eth_types::{Field, H256};
+use eth_types::{Field, H256, U256};
 use ethers_core::utils::keccak256;
 
 use crate::constants::MAX_AGG_SNARKS;
@@ -25,6 +25,9 @@ pub struct BatchHash {
     pub(crate) data_hash: H256,
     pub(crate) public_input_hash: H256,
     pub(crate) number_of_valid_chunks: usize,
+    pub(crate) challenge_point:U256,
+    pub(crate) result:U256,
+
 }
 
 impl BatchHash {
@@ -88,6 +91,10 @@ impl BatchHash {
                     chunks_with_padding[i].post_state_root,
                     chunks_with_padding[i + 1].prev_state_root,
                 );
+                assert_eq!(
+                    chunks_with_padding[i].challenge_point,
+                    chunks_with_padding[i + 1].challenge_point,
+                )
             }
         }
 
@@ -122,12 +129,20 @@ impl BatchHash {
         .concat();
         let public_input_hash = keccak256(preimage);
 
+        let challenge_point = chunks_with_padding[0].challenge_point;
+        let mut result = chunks_with_padding[0].partial_result;
+        for i in 1..MAX_AGG_SNARKS - 1 {
+            result = result+chunks_with_padding[i].partial_result;
+        }
+        
         Self {
             chain_id: chunks_with_padding[0].chain_id,
             chunks_with_padding: chunks_with_padding.try_into().unwrap(), // safe unwrap
             data_hash: data_hash.into(),
             public_input_hash: public_input_hash.into(),
             number_of_valid_chunks,
+            challenge_point,
+            result,
         }
     }
 
