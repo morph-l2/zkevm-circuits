@@ -8,12 +8,7 @@ use crate::{
 };
 use aggregator::ChunkHash;
 use anyhow::Result;
-<<<<<<< Updated upstream
-use eth_types::l2_types::BlockTrace;
-use eth_types::U256;
-=======
 use eth_types::{l2_types::BlockTrace, U256};
->>>>>>> Stashed changes
 
 #[derive(Debug)]
 pub struct Prover {
