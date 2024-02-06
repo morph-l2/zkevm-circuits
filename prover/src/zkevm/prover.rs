@@ -8,8 +8,12 @@ use crate::{
 };
 use aggregator::ChunkHash;
 use anyhow::Result;
+<<<<<<< Updated upstream
 use eth_types::l2_types::BlockTrace;
 use eth_types::U256;
+=======
+use eth_types::{l2_types::BlockTrace, U256};
+>>>>>>> Stashed changes
 
 #[derive(Debug)]
 pub struct Prover {
@@ -94,17 +98,16 @@ impl Prover {
     pub fn gen_chunk_proof_with_index(
         &mut self,
         chunk_trace: Vec<BlockTrace>,
+        batch_commit: U256,
+        challenge_point: U256,
         index: usize,
+        partial_result: U256,
         name: Option<&str>,
         inner_id: Option<&str>,
         output_dir: Option<&str>,
     ) -> Result<ChunkProof> {
         assert!(!chunk_trace.is_empty());
 
-        let batch_commit: U256 = U256::from(0);
-        let challenge_point: U256 = U256::from(0);
-        let index: usize = index;
-        let partial_result: U256 = U256::from(0);
         let witness_block = chunk_trace_to_witness_block_with_index(
             chunk_trace,
             batch_commit,

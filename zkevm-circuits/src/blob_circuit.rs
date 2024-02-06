@@ -12,8 +12,9 @@ use halo2_proofs::{
 };
 
 use bls12_381::Scalar as Fp;
+use itertools::Itertools;
 use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
-use std::marker::PhantomData;
+use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
 use rand::rngs::OsRng;
 
@@ -80,9 +81,16 @@ impl<F: Field> BlobCircuit<F> {
     }
 
     pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
-        (0..BLOB_WIDTH)
-            .map(|_| Fp::random(OsRng))
-            .collect()
+        match block_to_blob(block) {
+            Ok(blob) => {
+                let mut result: Vec<Fp> = Vec::new();
+                for chunk in blob.chunks(32) {
+                    result.push(Fp::from_bytes(chunk.try_into().unwrap()).unwrap());
+                }
+                result
+            }
+            Err(_) => Vec::new(),
+        }
     }
 }
 
@@ -339,3 +347,43 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 }
 
+const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
+
+pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<[u8; MAX_BLOB_DATA_SIZE], String> {
+    // get data from block.txs.rlp_signed
+    let data: Vec<u8> = block
+        .txs
+        .iter()
+        .flat_map(|tx| &tx.rlp_signed)
+        .cloned()
+        .collect();
+
+    if data.len() > MAX_BLOB_DATA_SIZE {
+        return Err(format!("data is too large for blob. len={}", data.len()));
+    }
+
+    let mut result = [0u8; MAX_BLOB_DATA_SIZE];
+
+    result[1..5].copy_from_slice(&(data.len() as u32).to_le_bytes());
+    let mut offset = std::cmp::min(27, data.len());
+    result[5..5 + offset].copy_from_slice(&data[..offset]);
+
+    if data.len() <= 27 {
+        return Ok(result);
+    }
+    for chunk in data[27..].chunks(31) {
+        let len = std::cmp::min(31, chunk.len());
+        result[offset] = len as u8;
+        result[offset + 1..offset + 1 + len].copy_from_slice(&chunk[..len]);
+        offset += len + 1;
+
+        if offset >= MAX_BLOB_DATA_SIZE {
+            return Err(format!(
+                "failed to fit all data into blob. bytes remaining: {}",
+                data.len() - offset
+            ));
+        }
+    }
+
+    Ok(result)
+}

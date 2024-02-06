@@ -1,6 +1,10 @@
 use bls12_381::Fp;
 use ethers_core::types::Signature;
-use std::{collections::{BTreeMap, HashMap}, ptr::null};
+use std::{
+    collections::{BTreeMap, HashMap},
+    io::Write,
+    ptr::null,
+};
 
 #[cfg(any(feature = "test", test))]
 use crate::evm_circuit::{detect_fixed_table_tags, EvmCircuit};
