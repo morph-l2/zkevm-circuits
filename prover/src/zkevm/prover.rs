@@ -3,12 +3,13 @@ use crate::{
     config::{LayerId, ZKEVM_DEGREES},
     consts::CHUNK_VK_FILENAME,
     io::try_to_read,
-    utils::chunk_trace_to_witness_block,
+    utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index},
     ChunkProof,
 };
 use aggregator::ChunkHash;
 use anyhow::Result;
 use eth_types::l2_types::BlockTrace;
+use eth_types::U256;
 
 #[derive(Debug)]
 pub struct Prover {
@@ -49,6 +50,68 @@ impl Prover {
         assert!(!chunk_trace.is_empty());
 
         let witness_block = chunk_trace_to_witness_block(chunk_trace)?;
+        log::info!("Got witness block");
+
+        let name = name.map_or_else(
+            || {
+                witness_block
+                    .context
+                    .ctxs
+                    .first_key_value()
+                    .map_or(0.into(), |(_, ctx)| ctx.number)
+                    .low_u64()
+                    .to_string()
+            },
+            |name| name.to_string(),
+        );
+
+        let snark = self.inner.load_or_gen_final_chunk_snark(
+            &name,
+            &witness_block,
+            inner_id,
+            output_dir,
+        )?;
+
+        self.check_and_clear_raw_vk();
+
+        match output_dir.and_then(|output_dir| ChunkProof::from_json_file(output_dir, &name).ok()) {
+            Some(proof) => Ok(proof),
+            None => {
+                let chunk_hash = ChunkHash::from_witness_block(&witness_block, false);
+
+                let result =
+                    ChunkProof::new(snark, self.inner.pk(LayerId::Layer2.id()), Some(chunk_hash));
+
+                if let (Some(output_dir), Ok(proof)) = (output_dir, &result) {
+                    proof.dump(output_dir, &name)?;
+                }
+
+                result
+            }
+        }
+    }
+
+    pub fn gen_chunk_proof_with_index(
+        &mut self,
+        chunk_trace: Vec<BlockTrace>,
+        index: usize,
+        name: Option<&str>,
+        inner_id: Option<&str>,
+        output_dir: Option<&str>,
+    ) -> Result<ChunkProof> {
+        assert!(!chunk_trace.is_empty());
+
+        let batch_commit: U256 = U256::from(0);
+        let challenge_point: U256 = U256::from(0);
+        let index: usize = index;
+        let partial_result: U256 = U256::from(0);
+        let witness_block = chunk_trace_to_witness_block_with_index(
+            chunk_trace,
+            batch_commit,
+            challenge_point,
+            index,
+            partial_result,
+        )?;
         log::info!("Got witness block");
 
         let name = name.map_or_else(
