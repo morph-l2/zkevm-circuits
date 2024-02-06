@@ -15,7 +15,7 @@ use zkevm_circuits::{
     table::KeccakTable,
     util::{Challenges, SubCircuitConfig},
 };
-
+use bls12_381::Scalar as Fp;
 use crate::{
     constants::{BITS, LIMBS},
     param::ConfigParams,
@@ -27,6 +27,7 @@ use crate::{
 /// Configurations for aggregation circuit.
 /// This config is hard coded for BN256 curve.
 pub struct AggregationConfig {
+    pub blob_field_config: FpConfig<Fr, Fp>,
     /// Non-native field chip configurations
     pub base_field_config: FpConfig<Fr, Fq>,
     /// Keccak circuit configurations
@@ -83,6 +84,20 @@ impl AggregationConfig {
             params.degree as usize,
         );
 
+        let blob_field_config = FpConfig::configure(
+            meta,
+            params.strategy.clone(),
+            &params.num_advice,
+            &params.num_lookup_advice,
+            params.num_fixed,
+            params.lookup_bits,
+            BITS,
+            LIMBS,
+            modulus::<Fp>(),
+            0,
+            params.degree as usize,
+        );
+
         let columns = keccak_circuit_config.cell_manager.columns();
         log::info!("keccak uses {} columns", columns.len(),);
 
@@ -105,6 +120,7 @@ impl AggregationConfig {
         meta.enable_equality(instance);
 
         Self {
+            blob_field_config,
             base_field_config,
             rlc_config,
             keccak_circuit_config,
@@ -122,6 +138,11 @@ impl AggregationConfig {
         &self.base_field_config.range
     }
 
+    /// Blob range gate configuration
+    pub fn blob_range(&self) -> &RangeConfig<Fr> {
+        &self.blob_field_config.range
+    }
+
     /// Flex gate configuration
     pub fn flex_gate(&self) -> &FlexGateConfig<Fr> {
         &self.base_field_config.range.gate
@@ -130,5 +151,10 @@ impl AggregationConfig {
     /// Ecc gate configuration
     pub fn ecc_chip(&self) -> BaseFieldEccChip<G1Affine> {
         EccChip::construct(self.base_field_config.clone())
+    }
+
+    /// Fp chip configuration
+    pub fn fp_chip(&self) -> FpConfig<Fr, Fp> {
+        FpConfig::construct(self.blob_field_config.range.clone(), BITS, LIMBS, modulus::<Fp>())
     }
 }

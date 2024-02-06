@@ -1,17 +1,15 @@
 use ark_std::{end_timer, start_timer};
+use eth_types::{Field, ToLittleEndian, U256};
 use halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner, Value},
-    halo2curves::bn256::{Bn256, Fr, G1Affine},
-    plonk::{Circuit, ConstraintSystem, Error, Selector},
-    poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
+     circuit::{Layouter, SimpleFloorPlanner, Value}, halo2curves::bn256::{Bn256, Fr, G1Affine}, plonk::{Circuit, ConstraintSystem, Error, Selector}, poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG}
 };
 use itertools::Itertools;
 use rand::Rng;
 use std::{env, fs::File};
-
+use bls12_381::Scalar as Fp;
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier::loader::halo2::halo2_ecc::halo2_base;
-use snark_verifier::pcs::kzg::KzgSuccinctVerifyingKey;
+use snark_verifier::{loader::halo2::halo2_ecc::{bigint::{CRTInteger, OverflowInteger}, fields::{fp::FpConfig, FieldChip}, halo2_base::{gates::{GateInstructions, RangeInstructions}, utils::fe_to_biguint}}, pcs::kzg::KzgSuccinctVerifyingKey, util::arithmetic::PrimeField};
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier::{
     loader::halo2::{
@@ -26,11 +24,7 @@ use snark_verifier_sdk::{CircuitExt, Snark, SnarkWitness};
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    batch::BatchHash,
-    constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN},
-    core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check},
-    util::parse_hash_digest_cells,
-    ConfigParams,
+    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN}, core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, util::parse_hash_digest_cells, ConfigParams, BITS, LIMBS
 };
 
 use super::AggregationConfig;
@@ -372,6 +366,26 @@ impl Circuit<Fr> for AggregationCircuit {
             }
         }
 
+        // ==============================================
+        // step 5: Blob partial result summation circuit
+        // ==============================================
+        let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
+            let fp_chip = config.fp_chip();
+            let mut ctx = fp_chip.new_context(region);
+            let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
+            for chunk in self.batch_hash.chunks_with_padding.iter() {
+                let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
+                let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
+                final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
+            } 
+            
+            let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
+            Ok((result))            
+            },
+        )?;
+
+        // TODO: constraint evaluated result = result in batch_hash
+
         end_timer!(witness_time);
         Ok(())
     }
@@ -412,4 +426,25 @@ impl CircuitExt<Fr> for AggregationCircuit {
             )
             .collect()
     }
+}
+
+pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a: Value<Fp>) -> CRTInteger<F> {
+    let a_vec = a.map(|x| halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), LIMBS, BITS)).transpose_vec(LIMBS);
+
+    let limbs = fq_chip.range.gate().assign_witnesses(ctx, a_vec);
+
+    let a_native = OverflowInteger::<F>::evaluate(
+        fq_chip.range.gate(),
+        //&self.bigint_chip,
+        ctx,
+        &limbs,
+        fq_chip.limb_bases.iter().cloned(),
+    );
+
+    let a_loaded =
+        CRTInteger::construct(OverflowInteger::construct(limbs, fq_chip.limb_bits), a_native, a.map(|x| fe_to_biguint(&x).into()));
+
+    // TODO: this range check prevents loading witnesses that are not in "proper" representation form, is that ok?
+    fq_chip.range_check(ctx, &a_loaded, Fp::NUM_BITS as usize);
+    a_loaded
 }

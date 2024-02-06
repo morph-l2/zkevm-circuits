@@ -1,9 +1,12 @@
 //! This module implements related functions that aggregates public inputs of many chunks into a
 //! single one.
 
+use std::vec;
+
 use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToLittleEndian, H256, U256};
 use ethers_core::utils::keccak256;
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
 
 use crate::constants::MAX_AGG_SNARKS;
 
@@ -218,5 +221,13 @@ impl BatchHash {
             .iter()
             .map(|&x| F::from(x as u64))
             .collect()]
+    }
+
+    pub(crate) fn instance_for_blob<F: Field>(&self) -> (Vec<F>,Vec<F>) {
+        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
+        let challenge_point = decompose_biguint::<F>(&fe_to_biguint(&cp_fe), 3, 88);
+        let pr_fe = Fp::from_bytes(&self.result.to_le_bytes()).unwrap();
+        let result = decompose_biguint::<F>(&fe_to_biguint(&pr_fe), 3, 88);
+        (challenge_point, result)
     }
 }
