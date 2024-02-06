@@ -349,7 +349,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 
-pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<[u8; MAX_BLOB_DATA_SIZE], String> {
+pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
     // get data from block.txs.rlp_signed
     let data: Vec<u8> = block
         .txs
@@ -362,26 +362,23 @@ pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<[u8; MAX_BLOB_DATA_SI
         return Err(format!("data is too large for blob. len={}", data.len()));
     }
 
-    let mut result = [0u8; MAX_BLOB_DATA_SIZE];
+    let mut result:Vec<u8> = vec![];
 
-    result[1..5].copy_from_slice(&(data.len() as u32).to_le_bytes());
-    let mut offset = std::cmp::min(27, data.len());
-    result[5..5 + offset].copy_from_slice(&data[..offset]);
+    result.push(0);
+    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    let offset = std::cmp::min(27, data.len());
+    result.extend_from_slice(&data[..offset]);
 
     if data.len() <= 27 {
         return Ok(result);
     }
+    
     for chunk in data[27..].chunks(31) {
         let len = std::cmp::min(31, chunk.len());
-        result[offset] = len as u8;
-        result[offset + 1..offset + 1 + len].copy_from_slice(&chunk[..len]);
-        offset += len + 1;
-
-        if offset >= MAX_BLOB_DATA_SIZE {
-            return Err(format!(
-                "failed to fit all data into blob. bytes remaining: {}",
-                data.len() - offset
-            ));
+        result.push(0);
+        result.extend_from_slice(&chunk[..len]);
+        for _ in 0..(31 - len) {
+            result.push(0);
         }
     }
 
