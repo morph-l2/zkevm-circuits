@@ -154,15 +154,14 @@ impl<F: Field> BlobCircuit<F>{
         //load challenge_point to fp_chip
         let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.challenge_point));
 
-        // let partial_result_fp = load_private(fp_chip, ctx, Value::known(self.partial_result));
-
-
         let blob = self
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
             .collect::<Vec<_>>();
 
+        let partial_blob_len = blob.len();
+        log::trace!("partial blob len{}", partial_blob_len);
         // === STEP 2: compute the barycentric formula ===
         // spec reference:
         // https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md
@@ -209,13 +208,14 @@ impl<F: Field> BlobCircuit<F>{
         let mut cp_is_not_root_of_unity = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
         let mut barycentric_evaluation = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
         
-        for i in 0..BLOB_WIDTH as usize {
-            let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i].clone(), &blob[i].clone());
+
+        for i in 0..partial_blob_len as usize {
+            let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i + self.index].clone(), &blob[i].clone());
     
             let denominator_i_no_carry = fp_chip.sub_no_carry(
                 ctx,
                 &challenge_point_fp.clone(),
-                &roots_of_unity_brp[i].clone(),
+                &roots_of_unity_brp[i + self.index].clone(),
             );
             let denominator_i = fp_chip.carry_mod(ctx, &denominator_i_no_carry);
             // avoid division by zero
@@ -254,22 +254,43 @@ impl<F: Field> BlobCircuit<F>{
         barycentric_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &factor);
     
         // === STEP 3: select between the two case ===
-        // if challenge_point is a root of unity, then result = blob[i]
+        // if challenge_point is a root of unity(index..index + partial_blob_len), then result = blob[i]
+        // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
         // else result = barycentric_evaluation
+        for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
+            let denominator_i_no_carry = fp_chip.sub_no_carry(
+                ctx,
+                &challenge_point_fp.clone(),
+                &roots_of_unity_brp[i].clone(),
+            );
+            let denominator_i = fp_chip.carry_mod(ctx, &denominator_i_no_carry);
+            // avoid division by zero
+            // safe_denominator_i = denominator_i       (denominator_i != 0)
+            // safe_denominator_i = 1                   (denominator_i == 0)
+            let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
+            let is_zero_denominator_i =
+                cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
+            // update `cp_is_not_root_of_unity`
+            // cp_is_not_root_of_unity = 1          (initialize)
+            // cp_is_not_root_of_unity = 0          (denominator_i == 0)
+            let non_zero_denominator_i =
+                fp_chip.sub_no_carry(ctx, &one_fp.clone(), &is_zero_denominator_i.clone());
+            cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
+        }
+        
         let select_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &cp_is_not_root_of_unity);
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
         
-
-        // ctx.constrain_equal(&result.truncation.limbs[0], &partial_result_fp.truncation.limbs[0]);
-        // ctx.constrain_equal(&result.truncation.limbs[1], &partial_result_fp.truncation.limbs[1]);
-        // ctx.constrain_equal(&result.truncation.limbs[2], &partial_result_fp.truncation.limbs[2]);
-
         ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
-        println!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
-        println!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
-        println!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
+        log::trace!("limb 1 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
+        log::trace!("limb 2 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
+        log::trace!("limb 3 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
+
+        log::trace!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
+        log::trace!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
+        log::trace!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
 
         let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
         
@@ -302,7 +323,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
         let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
 
-        let result = poly_eval(self.partial_blob.clone(), self.challenge_point, omega);
+        let result = poly_eval_partial(self.partial_blob.clone(), self.challenge_point, omega, self.index);
 
         let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
 

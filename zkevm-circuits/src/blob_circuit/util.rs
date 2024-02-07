@@ -326,6 +326,47 @@ pub fn poly_eval(values: Vec<Fp>, x: Fp, omega: Fp) -> Fp {
     return acc;
 }
 
+pub fn poly_eval_partial(values: Vec<Fp>, x: Fp, omega: Fp, index: usize) -> Fp {
+    let n = values.len();
+
+    let mut acc = Fp::zero();
+
+    let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
+        .map(|i| omega.pow(&[i as u64, 0, 0, 0]))
+        .collect();
+
+    let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity); 
+
+    let mut x_n = Fp::one();
+
+    for i in (0..index).chain((index+n)..4096) {
+        if x == roots_of_unity_brp[i]{
+            log::trace!("x == roots_of_unity {}", i);
+            return Fp::from(0);
+        }
+    }
+
+    for i in 0..n {
+        if x == roots_of_unity_brp[i + index]{
+            log::trace!("x == roots_of_unity {}", i + index);
+            return values[i];
+        }
+        log::trace!("blob {} w {}", i, i + index);
+        let inv_i = (x - roots_of_unity_brp[i + index]).invert().unwrap();
+
+        let acc_i = (values[i]) * roots_of_unity_brp[i + index] * inv_i;
+
+        acc += acc_i;
+    }
+
+    for _ in 0..4096 {
+        x_n *= x;
+    }
+    acc = (x_n - Fp::one()) * Fp::from(4096 as u64).invert().unwrap() * acc;
+
+    return acc;
+}
+
 pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a: Value<Fp>) -> CRTInteger<F> {
     let a_vec = a.map(|x| halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), NUM_LIMBS, LIMB_BITS)).transpose_vec(NUM_LIMBS);
 
