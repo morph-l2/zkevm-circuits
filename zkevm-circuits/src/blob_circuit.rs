@@ -391,6 +391,9 @@ pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
     result.extend_from_slice(&data[..offset]);
 
     if data.len() <= 27 {
+        for _ in 0..(27 - data.len()) {
+            result.push(0);
+        }
         return Ok(result);
     }
     
