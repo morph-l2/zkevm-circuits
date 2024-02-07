@@ -387,3 +387,34 @@ pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a
     fq_chip.range_check(ctx, &a_loaded, Fp::NUM_BITS as usize);
     a_loaded
 }
+
+pub fn txs_to_blob(txs: Vec<Vec<u8>>) -> Result<Vec<u8>, String> {
+    // get data from txs
+    let mut data: Vec<u8> = Vec::new();
+    for tx in txs {
+        data.extend(tx);
+    }
+    if data.len() > MAX_BLOB_DATA_SIZE {
+        return Err(format!("data is too large for blob. len={}", data.len()));
+    }
+    let mut result:Vec<u8> = vec![];
+    result.push(0);
+    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    let offset = std::cmp::min(27, data.len());
+    result.extend_from_slice(&data[..offset]);
+    if data.len() <= 27 {
+        for _ in 0..(27 - data.len()) {
+            result.push(0);
+        }
+        return Ok(result);
+    }
+    for chunk in data[27..].chunks(31) {
+        let len = std::cmp::min(31, chunk.len());
+        result.push(0);
+        result.extend_from_slice(&chunk[..len]);
+        for _ in 0..(31 - len) {
+            result.push(0);
+        }
+    }
+    Ok(result)
+}

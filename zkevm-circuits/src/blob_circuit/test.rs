@@ -102,5 +102,21 @@ fn test_partial_blob_consistency(){
     assert_eq!(prover.verify(), Ok(()));
 }
 
+#[test]
+fn test_txs_to_blob() {
+    // Create some dummy transactions
+    let txs: Vec<Vec<u8>> = vec![
+        vec![1, 2, 3],
+        vec![4, 5, 6],
+        vec![7, 8, 9],
+    ];
+
+    // Call the function under test
+    let result = txs_to_blob(txs.clone()).ok().unwrap();
+    for chunk in result.chunks(32) {
+        println!("chunk:{:?}", chunk);
+        Fp::from_bytes(chunk.try_into().unwrap()).unwrap();
+    }
+}
 
 
