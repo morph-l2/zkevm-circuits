@@ -24,7 +24,7 @@ use snark_verifier_sdk::{CircuitExt, Snark, SnarkWitness};
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN}, core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, util::parse_hash_digest_cells, ConfigParams, BITS, LIMBS
+    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN}, core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, util::parse_hash_digest_cells, ConfigParams, BITS, CHALLENGE_POINT_LEN, LIMBS
 };
 
 use super::AggregationConfig;
@@ -384,8 +384,11 @@ impl Circuit<Fr> for AggregationCircuit {
             },
         )?;
 
-        // TODO: constraint evaluated result = result in batch_hash
-
+        // True index of result in instance should be determined in the future.
+        let result_index_start = ACC_LEN + DIGEST_LEN + CHALLENGE_POINT_LEN;
+        for (i, v) in result.iter().enumerate() {
+            layouter.constrain_instance(v.cell(), config.instance, i+result_index_start)?;
+        }
         end_timer!(witness_time);
         Ok(())
     }
