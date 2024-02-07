@@ -85,7 +85,8 @@ impl<F: Field> BlobCircuit<F> {
             Ok(blob) => {
                 let mut result: Vec<Fp> = Vec::new();
                 for chunk in blob.chunks(32) {
-                    result.push(Fp::from_bytes(chunk.try_into().unwrap()).unwrap());
+                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
+                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
                 }
                 result
             }
