@@ -1,6 +1,6 @@
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::{
-    circuit::{AssignedCell, Layouter, Region, Value},
+    circuit::{AssignedCell, Layouter, Region, Value, Cell},
     halo2curves::{
         bn256::{Bn256, Fq, Fr, G1Affine, G2Affine},
         pairing::Engine,
@@ -167,6 +167,7 @@ pub(crate) struct ExtractedHashCells {
 // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
 // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
 // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+// 2.4. batch_pi_hash use same challenge point and result
 // 3. batch_data_hash and chunk[i].pi_hash use a same chunk[i].data_hash when chunk[i] is not padded
 // 4. chunks are continuous: they are linked via the state roots
 // 5. batch and all its chunks use a same chain id
@@ -183,6 +184,7 @@ pub(crate) fn assign_batch_hashes(
     challenges: Challenges<Value<Fr>>,
     chunks_are_valid: &[bool],
     preimages: &[Vec<u8>],
+    challenge_cells: &[Cell],
 ) -> Result<Vec<AssignedCell<Fr, Fr>>, Error> {
     let extracted_hash_cells = extract_hash_cells(
         &config.keccak_circuit_config,
@@ -195,7 +197,7 @@ pub(crate) fn assign_batch_hashes(
     // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
     // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
     // 5. batch and all its chunks use a same chain id
-    copy_constraints(layouter, &extracted_hash_cells.hash_input_cells)?;
+    copy_constraints(layouter, &extracted_hash_cells.hash_input_cells, challenge_cells)?;
 
     // 1. batch_data_hash digest is reused for public input hash
     // 3. batch_data_hash and chunk[i].pi_hash use a same chunk[i].data_hash when chunk[i] is not
@@ -237,7 +239,9 @@ pub(crate) fn extract_hash_cells(
     //      chunk[0].prev_state_root ||
     //      chunk[k-1].post_state_root ||
     //      chunk[k-1].withdraw_root ||
-    //      batch_data_hash)
+    //      batch_data_hash ||
+    //      challenge_point ||
+    //      result)
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
@@ -349,6 +353,7 @@ pub(crate) fn extract_hash_cells(
 fn copy_constraints(
     layouter: &mut impl Layouter<Fr>,
     hash_input_cells: &[AssignedCell<Fr, Fr>],
+    challenge_cells: &[Cell],
 ) -> Result<(), Error> {
     let mut is_first_time = true;
 
@@ -450,6 +455,8 @@ fn copy_constraints(
                         chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + WITHDRAW_ROOT_INDEX].cell(),
                     )?;
                 }
+                // TODO:2.4 challenge point and result
+                // region.constrain_equal(challenge_cells[0], right);
 
                 // 5 assert hashes use a same chain id
                 for (i, chunk_pi_hash_preimage) in chunk_pi_hash_preimages.iter().enumerate() {
