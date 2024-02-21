@@ -13,7 +13,8 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     // chain_id || chunk_0's prev_state || chunk_k-1's post_state ||
     // chunk_k-1's withdraw_root || batch_data_hash.
     // In total there're 168 bytes. Therefore 2 pi rounds are required.
-    let pi_rounds = 2;
+    // add challenge_point || result  192(6*32)bytes   Therefore 3 pi rounds are required
+    let pi_rounds = 3;
     // Hash for each chunk is derived from hashing the chunk's
     // chain_id || prev_state || post_state || withdraw_root || data_hash
     // Each chunk hash therefore also requires 2 keccak rounds for 168 bytes.
@@ -185,11 +186,11 @@ pub(crate) fn parse_hash_preimage_cells(
     // each pi hash has INPUT_LEN_PER_ROUND bytes as input
     // keccak will pad the input with another INPUT_LEN_PER_ROUND bytes
     // we extract all those bytes
-    let batch_pi_hash_preimage = &hash_input_cells[0..INPUT_LEN_PER_ROUND * 2];
+    let batch_pi_hash_preimage = &hash_input_cells[0..INPUT_LEN_PER_ROUND * 3];
     let mut chunk_pi_hash_preimages = vec![];
     for i in 0..MAX_AGG_SNARKS {
         chunk_pi_hash_preimages.push(
-            &hash_input_cells[INPUT_LEN_PER_ROUND * 2 * (i + 1)..INPUT_LEN_PER_ROUND * 2 * (i + 2)],
+            &hash_input_cells[INPUT_LEN_PER_ROUND * (2 * i + 3)..INPUT_LEN_PER_ROUND * (2 * i + 5)],
         );
     }
     let potential_batch_data_hash_preimage =
