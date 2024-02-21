@@ -130,7 +130,7 @@ impl ChunkHash {
         r.fill_bytes(&mut buf);
         // let challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
         let challenge_point = Fp::from(123).to_bytes();
-        println!("cp le bytes{:?}", challenge_point);
+        //println!("cp le bytes{:?}", challenge_point);
 
         let mut buf1 = [0u8; 64];
         r.fill_bytes(&mut buf1);

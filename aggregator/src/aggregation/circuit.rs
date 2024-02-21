@@ -91,13 +91,15 @@ impl AggregationCircuit {
         let public_input_hash = &batch_hash.instances_exclude_acc()[0];
 
         // extract blob instance
-        let (challenge_point_instance, result_isntance) = &batch_hash.instance_for_blob();
+        //let (challenge_point_instance, result_isntance) = &batch_hash.instance_for_blob();
 
         // the public instance for this circuit consists of
         // - an accumulator (12 elements)
         // - the batch's public_input_hash (32 elements)
+        // let flattened_instances: Vec<Fr> =
+        //     [acc_instances.as_slice(), public_input_hash.as_slice(), challenge_point_instance.as_slice(), result_isntance.as_slice()].concat();
         let flattened_instances: Vec<Fr> =
-            [acc_instances.as_slice(), public_input_hash.as_slice(), challenge_point_instance.as_slice(), result_isntance.as_slice()].concat();
+            [acc_instances.as_slice(), public_input_hash.as_slice()].concat();
 
         end_timer!(timer);
         Ok(Self {
@@ -372,39 +374,39 @@ impl Circuit<Fr> for AggregationCircuit {
         // ==============================================
         // step 5: Blob partial result summation circuit
         // ==============================================
-        let challenge_point = layouter.assign_region(||"Assign Challenge Point", |mut region|->Result<(Vec<AssignedValue<Fr>>), Error>{
-            let fp_chip = config.fp_chip();
-            let mut ctx = fp_chip.new_context(region);
-            let mut challenge_point = load_private(&fp_chip, &mut ctx, Value::known(Fp::from_bytes(&self.batch_hash.challenge_point.to_le_bytes()).unwrap()));
-            let challenge_point = vec![challenge_point.truncation.limbs[0], challenge_point.truncation.limbs[1], challenge_point.truncation.limbs[2]];
-            Ok(challenge_point)
-        })?;
+        // let challenge_point = layouter.assign_region(||"Assign Challenge Point", |mut region|->Result<(Vec<AssignedValue<Fr>>), Error>{
+        //     let fp_chip = config.fp_chip();
+        //     let mut ctx = fp_chip.new_context(region);
+        //     let mut challenge_point = load_private(&fp_chip, &mut ctx, Value::known(Fp::from_bytes(&self.batch_hash.challenge_point.to_le_bytes()).unwrap()));
+        //     let challenge_point = vec![challenge_point.truncation.limbs[0], challenge_point.truncation.limbs[1], challenge_point.truncation.limbs[2]];
+        //     Ok(challenge_point)
+        // })?;
 
-        let cp_index_start = ACC_LEN + DIGEST_LEN ;
-        for (i, v) in challenge_point.iter().enumerate() {
-            layouter.constrain_instance(v.cell(), config.instance, i+cp_index_start)?;
-        }
+        // let cp_index_start = ACC_LEN + DIGEST_LEN ;
+        // for (i, v) in challenge_point.iter().enumerate() {
+        //     layouter.constrain_instance(v.cell(), config.instance, i+cp_index_start)?;
+        // }
 
-        let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
-            let fp_chip = config.fp_chip();
-            let mut ctx = fp_chip.new_context(region);
-            let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
-            for chunk in self.batch_hash.chunks_with_padding.iter() {
-                let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
-                let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
-                final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
-            } 
+        // let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
+        //     let fp_chip = config.fp_chip();
+        //     let mut ctx = fp_chip.new_context(region);
+        //     let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
+        //     for chunk in self.batch_hash.chunks_with_padding.iter() {
+        //         let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
+        //         let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
+        //         final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
+        //     } 
             
-            let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
-            Ok((result))            
-            },
-        )?;
+        //     let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
+        //     Ok((result))            
+        //     },
+        // )?;
 
         // True index of result in instance should be determined in the future.
-        let result_index_start = cp_index_start + CHALLENGE_POINT_LEN;
-        for (i, v) in result.iter().enumerate() {
-            layouter.constrain_instance(v.cell(), config.instance, i+result_index_start)?;
-        }
+        // let result_index_start = cp_index_start + CHALLENGE_POINT_LEN;
+        // for (i, v) in result.iter().enumerate() {
+        //     layouter.constrain_instance(v.cell(), config.instance, i+result_index_start)?;
+        // }
         end_timer!(witness_time);
         Ok(())
     }
@@ -415,7 +417,8 @@ impl CircuitExt<Fr> for AggregationCircuit {
         // 12 elements from accumulator
         // 32 elements from batch's public_input_hash
         // 6 elements from blob input x & y
-        vec![ACC_LEN + DIGEST_LEN+ BLOB_POINT_LEN]
+        // vec![ACC_LEN + DIGEST_LEN+ BLOB_POINT_LEN]
+        vec![ACC_LEN + DIGEST_LEN]
     }
 
     // 12 elements from accumulator
