@@ -65,8 +65,8 @@ impl AggregationCircuit {
             let chunk_hash_bytes = chunk.public_input_hash();
             let snark_hash_bytes = &snark.instances[0];
 
-            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN+BLOB_POINT_LEN);
-
+            // assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN+BLOB_POINT_LEN);
+            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN);
             for i in 0..DIGEST_LEN {
                 // for each snark,
                 //  first 12 elements are accumulator
@@ -229,7 +229,8 @@ impl Circuit<Fr> for AggregationCircuit {
                 },
             )?;
 
-            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * (DIGEST_LEN+BLOB_POINT_LEN));
+            // assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * (DIGEST_LEN+BLOB_POINT_LEN));
+            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * DIGEST_LEN);
             (accumulator_instances, snark_inputs)
         };
         end_timer!(timer);

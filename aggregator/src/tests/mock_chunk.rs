@@ -98,6 +98,7 @@ impl Circuit<Fr> for MockChunkCircuit {
         mut layouter: impl Layouter<Fr>,
     ) -> Result<(), Error> {
         let mut first_pass = SKIP_FIRST_PASS;
+        
 
         let cells = layouter.assign_region(
             || "mock circuit",
@@ -121,13 +122,13 @@ impl Circuit<Fr> for MockChunkCircuit {
                         .unwrap();
                     cells.push(cell)
                 }
-                for (_i, fe) in self.chunk.challenge_point().clone().into_iter().chain(self.chunk.partial_result().into_iter()).enumerate(){
-                    let cell = config
-                    .rlc_config
-                    .load_private(&mut region, &fe, &mut index)
-                    .unwrap();
-                    cells.push(cell)
-                }
+                // for (_i, fe) in self.chunk.challenge_point().clone().into_iter().chain(self.chunk.partial_result().into_iter()).enumerate(){
+                //     let cell = config
+                //     .rlc_config
+                //     .load_private(&mut region, &fe, &mut index)
+                //     .unwrap();
+                //     cells.push(cell)
+                // }
 
                 Ok(cells)
             },
@@ -145,7 +146,8 @@ impl CircuitExt<Fr> for MockChunkCircuit {
     /// 32 elements from digest and 6 elements from x/y
     fn num_instance(&self) -> Vec<usize> {
         let acc_len = if self.has_accumulator { ACC_LEN } else { 0 };
-        vec![DIGEST_LEN + acc_len + BLOB_POINT_LEN]
+        // vec![DIGEST_LEN + acc_len + BLOB_POINT_LEN]
+        vec![DIGEST_LEN + acc_len]
     }
 
     /// return vec![acc | public input hash | challenge_point_limbs | partial_result_limbs]
@@ -155,8 +157,8 @@ impl CircuitExt<Fr> for MockChunkCircuit {
             .take(acc_len)
             .chain(self.chunk.public_input_hash().as_bytes().iter().copied())
             .map(|x| Fr::from(x as u64))
-            .chain(self.chunk.challenge_point().into_iter())
-            .chain(self.chunk.partial_result().into_iter())
+            // .chain(self.chunk.challenge_point().into_iter())
+            // .chain(self.chunk.partial_result().into_iter())
             .collect()]
     }
 }
