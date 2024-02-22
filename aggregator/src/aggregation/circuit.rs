@@ -249,20 +249,20 @@ impl Circuit<Fr> for AggregationCircuit {
         //     layouter.constrain_instance(v.cell(), config.instance, i+cp_index_start)?;
         // }
 
-        let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
-            let fp_chip = config.fp_chip();
-            let mut ctx = fp_chip.new_context(region);
-            let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
-            for chunk in self.batch_hash.chunks_with_padding.iter() {
-                let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
-                let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
-                final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
-            } 
+        // let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
+        //     let fp_chip = config.fp_chip();
+        //     let mut ctx = fp_chip.new_context(region);
+        //     let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
+        //     for chunk in self.batch_hash.chunks_with_padding.iter() {
+        //         let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
+        //         let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
+        //         final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
+        //     } 
             
-            let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
-            Ok((result))            
-            },
-        )?;
+        //     let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
+        //     Ok((result))            
+        //     },
+        // )?;
 
 
         
@@ -367,14 +367,14 @@ impl Circuit<Fr> for AggregationCircuit {
                                 "{}-th snark: {:?} {:?}",
                                 i,
                                 chunk_pi_hash_digests[i][j * 8 + k].value(),
-                                snark_inputs[i * DIGEST_LEN + (3 - j) * 8 + k].value()
+                                snark_inputs[i * (DIGEST_LEN + 6) + (3 - j) * 8 + k].value()
                             );
 
                             region.constrain_equal(
                                 // in the keccak table, the input and output data have different
                                 // endianess
                                 chunk_pi_hash_digests[i][j * 8 + k].cell(),
-                                snark_inputs[i * DIGEST_LEN + (3 - j) * 8 + k].cell(),
+                                snark_inputs[i * (DIGEST_LEN + 6) + (3 - j) * 8 + k].cell(),
                             )?;
                         }
                     }

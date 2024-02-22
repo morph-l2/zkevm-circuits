@@ -194,7 +194,7 @@ pub(crate) fn parse_hash_preimage_cells(
         );
     }
     let potential_batch_data_hash_preimage =
-        &hash_input_cells[INPUT_LEN_PER_ROUND * 2 * (MAX_AGG_SNARKS + 1)..];
+        &hash_input_cells[INPUT_LEN_PER_ROUND + INPUT_LEN_PER_ROUND * 2 * (MAX_AGG_SNARKS + 1)..];
 
     (
         batch_pi_hash_preimage,

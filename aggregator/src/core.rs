@@ -812,14 +812,18 @@ pub(crate) fn conditional_constraints(
                 }
 
                 // 7. the hash input length are correct
-                // - first MAX_AGG_SNARKS + 1 hashes all have 136 bytes input
+                // - first hash  have 136 + 192 bytes input
+                // - MAX_AGG_SNARKS hashes all have 136 bytes input
                 // - batch's data_hash length is 32 * number_of_valid_snarks
 
-                // - first MAX_AGG_SNARKS + 1 hashes all have 136 bytes input
+                // TODO: first hash  have 136 + 192 bytes input
+
+
+                // - MAX_AGG_SNARKS hashes all have 136 bytes input
                 hash_input_len_cells
                     .iter()
-                    .skip(1)
-                    .take((MAX_AGG_SNARKS + 1) * 2)
+                    .skip(4)
+                    .take((MAX_AGG_SNARKS) * 2)
                     .chunks(2)
                     .into_iter()
                     .try_for_each(|chunk| {
@@ -842,54 +846,54 @@ pub(crate) fn conditional_constraints(
                 assert_exist(
                     &data_hash_inputs_len,
                     &[
-                        hash_input_len_cells[MAX_AGG_SNARKS * 2 + 3].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 2 + 4].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 2 + 5].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 2 + 6].clone(),
+                        hash_input_len_cells[MAX_AGG_SNARKS * 2 + 7].clone(),
                     ],
                 )?;
 
                 log::trace!("data_hash_inputs: {:?}", data_hash_inputs_len.value());
                 log::trace!(
                     "candidate 1: {:?}",
-                    hash_input_len_cells[MAX_AGG_SNARKS * 2 + 3].value()
-                );
-                log::trace!(
-                    "candidate 2: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 2 + 4].value()
                 );
                 log::trace!(
-                    "candidate 3: {:?}",
+                    "candidate 2: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 2 + 5].value()
                 );
                 log::trace!(
-                    "candidate 4: {:?}",
+                    "candidate 3: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 2 + 6].value()
+                );
+                log::trace!(
+                    "candidate 4: {:?}",
+                    hash_input_len_cells[MAX_AGG_SNARKS * 2 + 7].value()
                 );
 
                 let mut data_hash_inputs_len_rec = rlc_config.mul(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 3],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 4],
                     &flag1,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 4],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 5],
                     &flag2,
                     &data_hash_inputs_len_rec,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 5],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 6],
                     &flag3,
                     &data_hash_inputs_len_rec,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 6],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 2 + 7],
                     &flag4,
                     &data_hash_inputs_len_rec,
                     &mut offset,
@@ -933,17 +937,13 @@ pub(crate) fn conditional_constraints(
                 assert_exist(
                     &rlc_cell,
                     &[
-                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 2 + 6].clone(),
+                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 7].clone(),
                     ],
                 )?;
                 log::trace!("rlc from chip {:?}", rlc_cell.value());
-                log::trace!(
-                    "rlc from table {:?}",
-                    data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].value()
-                );
                 log::trace!(
                     "rlc from table {:?}",
                     data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].value()
@@ -952,30 +952,34 @@ pub(crate) fn conditional_constraints(
                     "rlc from table {:?}",
                     data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].value()
                 );
+                log::trace!(
+                    "rlc from table {:?}",
+                    data_rlc_cells[MAX_AGG_SNARKS * 2 + 6].value()
+                );
 
                 // assertion
                 let t1 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 3],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 4],
                     &mut offset,
                 )?;
                 let t2 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 4],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 5],
                     &mut offset,
                 )?;
                 let t3 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 5],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 6],
                     &mut offset,
                 )?;
                 let t4 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 6],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 7],
                     &mut offset,
                 )?;
                 let t1t2 = rlc_config.mul(&mut region, &t1, &t2, &mut offset)?;
@@ -1013,8 +1017,8 @@ pub(crate) fn conditional_constraints(
                 // first MAX_AGG_SNARKS + 1 keccak
                 for mut chunk in is_final_cells
                     .iter()
-                    .skip(1)
-                    .take((MAX_AGG_SNARKS + 1) * 2)
+                    .skip(4)
+                    .take((MAX_AGG_SNARKS) * 2)
                     .into_iter()
                     .chunks(2)
                     .into_iter()
@@ -1033,10 +1037,10 @@ pub(crate) fn conditional_constraints(
                 }
                 // last keccak
                 // we constrain a * flag1 + b * flag2 + c * flag3 + d * flag4 == 1
-                let a = &is_final_cells[2 * (MAX_AGG_SNARKS) + 3];
-                let b = &is_final_cells[2 * (MAX_AGG_SNARKS) + 4];
-                let c = &is_final_cells[2 * (MAX_AGG_SNARKS) + 5];
-                let d = &is_final_cells[2 * (MAX_AGG_SNARKS) + 6];
+                let a = &is_final_cells[2 * (MAX_AGG_SNARKS) + 4];
+                let b = &is_final_cells[2 * (MAX_AGG_SNARKS) + 5];
+                let c = &is_final_cells[2 * (MAX_AGG_SNARKS) + 6];
+                let d = &is_final_cells[2 * (MAX_AGG_SNARKS) + 7];
                 let mut left = rlc_config.mul(&mut region, a, &flag1, &mut offset)?;
                 left = rlc_config.mul_add(&mut region, b, &flag2, &left, &mut offset)?;
                 left = rlc_config.mul_add(&mut region, c, &flag3, &left, &mut offset)?;
