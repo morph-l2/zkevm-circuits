@@ -520,7 +520,8 @@ impl<
             let mpt = MptCircuit::<Fr>::min_num_rows_block(block);
             push("mpt", mpt);
         }
-
+        let blob = BlobCircuit::<Fr>::min_num_rows_block(block);
+        push("blob", blob);
         let row_usage_details = rows
             .into_iter()
             .map(|(name, (row_num_real, row_num_total))| SubcircuitRowUsage {
@@ -706,6 +707,10 @@ impl<
             self.mpt_circuit
                 .synthesize_sub(&config.mpt_circuit, challenges, layouter)?;
         }
+
+        log::debug!("assigning blob_circuit");
+        self.blob_circuit
+            .synthesize_sub(&config.blob_circuit, &challenges, layouter)?;
 
         log::debug!("super circuit synthesize_sub done");
         Ok(())

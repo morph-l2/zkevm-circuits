@@ -316,7 +316,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (10000,10000)
+        (1<<16,1<<16)
     }
 
     /// Compute the public inputs for this circuit.
