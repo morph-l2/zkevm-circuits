@@ -18,7 +18,7 @@ use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
 use rand::rngs::OsRng;
 
-mod util;
+pub mod util;
 mod test;
 mod dev;
 
