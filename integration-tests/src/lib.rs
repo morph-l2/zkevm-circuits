@@ -51,13 +51,13 @@ lazy_static! {
     /// ..
     pub static ref START_BLOCK: usize =  match env::var("START_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 1,
+        Err(VarError::NotPresent) => 3481,
         Err(e) => panic!("Error in START_BLOCK env var: {e:?}"),
     };
     /// ..
     pub static ref END_BLOCK: usize =  match env::var("END_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 2,
+        Err(VarError::NotPresent) => 3482,
         Err(e) => panic!("Error in END_BLOCK env var: {e:?}"),
     };
     /// ..
