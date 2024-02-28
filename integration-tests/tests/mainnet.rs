@@ -130,7 +130,7 @@ async fn test_circuit_all_block() {
         let params = CircuitsParams {
             max_rws: 4_000_000,
             max_copy_rows: 0, // dynamic
-            max_txs: 350,
+            max_txs: 100,
             max_calldata: 2_000_000,
             max_inner_blocks: 64,
             max_bytecode: 3_000_000,
@@ -146,7 +146,7 @@ async fn test_circuit_all_block() {
         if builder.is_err() {
             let err = builder.err().unwrap();
             let err_msg = match err {
-                JSONRpcError(_json_rpc_err) => "JSONRpcError".to_string(), // too long...
+                JSONRpcError(_json_rpc_err) => _json_rpc_err.to_string(), // too long...
                 _ => format!("{err:?}"),
             };
             log::error!("invalid builder {} {:?}, err num NA", block_num, err_msg);

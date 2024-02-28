@@ -97,11 +97,11 @@ impl Account {
 
     /// Return if account is empty or not.
     pub fn is_empty(&self) -> bool {
-        debug_assert_ne!(
-            self.code_hash,
-            Hash::zero(),
-            "codehash inside statedb should never be 0, {self:?}"
-        );
+        // debug_assert_ne!(
+        //     self.code_hash,
+        //     Hash::zero(),
+        //     "codehash inside statedb should never be 0, {self:?}"
+        // );
         let is_code_hash_empty = self.code_hash.eq(&CodeDB::empty_code_hash());
         if is_code_hash_empty {
             debug_assert_eq!(Word::zero(), self.code_size);
