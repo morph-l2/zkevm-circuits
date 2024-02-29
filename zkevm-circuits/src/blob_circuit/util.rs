@@ -328,6 +328,9 @@ pub fn poly_eval(values: Vec<Fp>, x: Fp, omega: Fp) -> Fp {
 }
 
 pub fn poly_eval_partial(values: Vec<Fp>, x: Fp, omega: Fp, index: usize) -> Fp {
+
+    log::trace!("x, index and blob for compute partial result {:?}", x, index, values);
+
     let n = values.len();
 
     let mut acc = Fp::zero();

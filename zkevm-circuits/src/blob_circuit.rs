@@ -288,13 +288,13 @@ impl<F: Field> BlobCircuit<F>{
         
         ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
-        log::trace!("limb 1 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
-        log::trace!("limb 2 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
-        log::trace!("limb 3 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
+        log::trace!("limb 1 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
+        log::trace!("limb 2 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
+        log::trace!("limb 3 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
 
-        log::trace!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
-        log::trace!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
-        log::trace!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
+        log::trace!("limb 1 reconstructed {:?}", result.truncation.limbs[0].value());
+        log::trace!("limb 2 reconstructed {:?}", result.truncation.limbs[1].value());
+        log::trace!("limb 3 reconstructed {:?}", result.truncation.limbs[2].value());
 
         let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
         
@@ -332,7 +332,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
 
         public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
-
+        
         log::trace!("compute blob circuit public input {:?}", public_inputs);
 
         vec![public_inputs]
