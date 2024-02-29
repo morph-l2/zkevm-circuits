@@ -7,7 +7,6 @@ members = [
     "zktrie",
     "gadgets",
     "integration-tests",
-    "integration-tests/tx-gen",
     "circuit-benchmarks",
     "eth-types",
     "external-tracer",

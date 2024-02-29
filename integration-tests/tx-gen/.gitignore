@@ -1,7 +1,0 @@
-/target
-/node_modules
-# /artifacts
-/cache
-.env
-!*.json
-!*.sh
