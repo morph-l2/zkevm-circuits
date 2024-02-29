@@ -611,14 +611,14 @@ impl<
     /// Returns suitable inputs for the SuperCircuit.
     fn instance(&self) -> Vec<Vec<Fr>> {
         let mut instance = Vec::new();
-        instance.extend_from_slice(&self.keccak_circuit.instance());
-        instance.extend_from_slice(&self.pi_circuit.instance());
-        instance.extend_from_slice(&self.tx_circuit.instance());
-        instance.extend_from_slice(&self.bytecode_circuit.instance());
-        instance.extend_from_slice(&self.copy_circuit.instance());
-        instance.extend_from_slice(&self.state_circuit.instance());
-        instance.extend_from_slice(&self.exp_circuit.instance());
-        instance.extend_from_slice(&self.evm_circuit.instance());
+        // instance.extend_from_slice(&self.keccak_circuit.instance());
+        // instance.extend_from_slice(&self.pi_circuit.instance());
+        // instance.extend_from_slice(&self.tx_circuit.instance());
+        // instance.extend_from_slice(&self.bytecode_circuit.instance());
+        // instance.extend_from_slice(&self.copy_circuit.instance());
+        // instance.extend_from_slice(&self.state_circuit.instance());
+        // instance.extend_from_slice(&self.exp_circuit.instance());
+        // instance.extend_from_slice(&self.evm_circuit.instance());
         instance.extend_from_slice(&self.blob_circuit.instance());
 
 
