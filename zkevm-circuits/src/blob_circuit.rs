@@ -88,7 +88,9 @@ impl<F: Field> BlobCircuit<F> {
                     let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
                     result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
                 }
+                log::trace!("partial blob: {:?}", result);
                 result
+                
             }
             Err(_) => Vec::new(),
         }
@@ -253,11 +255,12 @@ impl<F: Field> BlobCircuit<F>{
         let width_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::from(BLOB_WIDTH as u64)));
         let factor = fp_chip.divide(ctx, &cp_to_the_width_minus_one, &width_fp);
         barycentric_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &factor);
-    
+        
         // === STEP 3: select between the two case ===
         // if challenge_point is a root of unity(index..index + partial_blob_len), then result = blob[i]
         // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
         // else result = barycentric_evaluation
+        // (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH)
         for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
             let denominator_i_no_carry = fp_chip.sub_no_carry(
                 ctx,
@@ -316,7 +319,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (1<<16,1<<16)
+        (1<<20,1<<20)
     }
 
     /// Compute the public inputs for this circuit.
@@ -330,7 +333,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
         public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
 
-        println!("compute public input {:?}", public_inputs);
+        log::trace!("compute blob circuit public input {:?}", public_inputs);
 
         vec![public_inputs]
     }

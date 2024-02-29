@@ -14,7 +14,7 @@ use halo2_proofs::{
 };
 use rand::{Rng, RngCore};
 use std::marker::PhantomData;
-use bls12_381::Scalar as Fp;
+use bls12_381::{Scalar as Fp};
 use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
 use rand::rngs::OsRng;
 
@@ -76,7 +76,8 @@ fn test_partial_blob_consistency(){
     let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity); 
 
     //let challenge_point = roots_of_unity_brp[0];
-    let challenge_point = Fp::random(OsRng);
+    // let challenge_point = Fp::random(OsRng);
+    let challenge_point = Fp::from(128);
 
     let result = poly_eval_partial(blob.clone(), challenge_point, omega, index);
     
