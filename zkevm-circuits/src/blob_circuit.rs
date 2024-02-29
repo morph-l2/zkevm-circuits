@@ -319,7 +319,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (1<<20,1<<20)
+        (0,1<<20)
     }
 
     /// Compute the public inputs for this circuit.
@@ -332,7 +332,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
 
         public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
-        
+
         log::trace!("compute blob circuit public input {:?}", public_inputs);
 
         vec![public_inputs]

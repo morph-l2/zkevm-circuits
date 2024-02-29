@@ -22,6 +22,7 @@ impl TargetCircuit for SuperCircuit {
         Self: Sized,
     {
         let (k, inner, instance) = Self::Inner::build_from_witness_block(witness_block.clone())?;
+        log::trace!("super_circuit instance: {:?}", instance);
         if k > *INNER_DEGREE {
             bail!(
                 "circuit not enough: INNER_DEGREE = {}, less than k needed: {}",
