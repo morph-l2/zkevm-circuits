@@ -125,7 +125,7 @@ pub struct SuperCircuitConfig<F: Field> {
     copy_circuit: CopyCircuitConfig<F>,
     keccak_circuit: KeccakCircuitConfig<F>,
     poseidon_circuit: PoseidonCircuitConfig<F>,
-    pi_circuit: PiCircuitConfig<F>,
+    // pi_circuit: PiCircuitConfig<F>,
     exp_circuit: ExpCircuitConfig<F>,
     rlp_circuit: RlpCircuitConfig<F>,
     /// Mpt Circuit
@@ -229,19 +229,19 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
         );
         log_circuit_info(meta, "rlp circuit");
 
-        let pi_circuit = PiCircuitConfig::new(
-            meta,
-            PiCircuitConfigArgs {
-                max_txs,
-                max_calldata,
-                max_inner_blocks,
-                block_table: block_table.clone(),
-                keccak_table: keccak_table.clone(),
-                tx_table: tx_table.clone(),
-                challenges: challenges_expr.clone(),
-            },
-        );
-        log_circuit_info(meta, "pi circuit");
+        // let pi_circuit = PiCircuitConfig::new(
+        //     meta,
+        //     PiCircuitConfigArgs {
+        //         max_txs,
+        //         max_calldata,
+        //         max_inner_blocks,
+        //         block_table: block_table.clone(),
+        //         keccak_table: keccak_table.clone(),
+        //         tx_table: tx_table.clone(),
+        //         challenges: challenges_expr.clone(),
+        //     },
+        // );
+        // log_circuit_info(meta, "pi circuit");
 
         let tx_circuit = TxCircuitConfig::new(
             meta,
@@ -396,7 +396,7 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
             bytecode_circuit,
             keccak_circuit,
             poseidon_circuit,
-            pi_circuit,
+            // pi_circuit,
             rlp_circuit,
             tx_circuit,
             exp_circuit,
@@ -612,15 +612,15 @@ impl<
     /// Returns suitable inputs for the SuperCircuit.
     fn instance(&self) -> Vec<Vec<Fr>> {
         let mut instance = Vec::new();
+        // instance.extend_from_slice(&self.keccak_circuit.instance());
+        // instance.extend_from_slice(&self.pi_circuit.instance());
+        // instance.extend_from_slice(&self.tx_circuit.instance());
+        // instance.extend_from_slice(&self.bytecode_circuit.instance());
+        // instance.extend_from_slice(&self.copy_circuit.instance());
+        // instance.extend_from_slice(&self.state_circuit.instance());
+        // instance.extend_from_slice(&self.exp_circuit.instance());
+        // instance.extend_from_slice(&self.evm_circuit.instance());
         instance.extend_from_slice(&self.blob_circuit.instance());
-        instance.extend_from_slice(&self.keccak_circuit.instance());
-        instance.extend_from_slice(&self.pi_circuit.instance());
-        instance.extend_from_slice(&self.tx_circuit.instance());
-        instance.extend_from_slice(&self.bytecode_circuit.instance());
-        instance.extend_from_slice(&self.copy_circuit.instance());
-        instance.extend_from_slice(&self.state_circuit.instance());
-        instance.extend_from_slice(&self.exp_circuit.instance());
-        instance.extend_from_slice(&self.evm_circuit.instance());
 
 
         instance

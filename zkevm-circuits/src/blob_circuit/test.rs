@@ -66,6 +66,7 @@ fn test_partial_blob_consistency(){
         .map(|_| Fp::random(OsRng))
         .collect();
     
+
     log::trace!("blob:{:?}", blob);
 
     let index = 50;
