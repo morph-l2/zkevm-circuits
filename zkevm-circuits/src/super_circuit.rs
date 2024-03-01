@@ -112,22 +112,22 @@ pub struct SuperCircuitConfig<F: Field> {
     poseidon_table: PoseidonTable,
     u8_table: U8Table,
     u16_table: U16Table,
-    // evm_circuit: EvmCircuitConfig<F>,
-    // state_circuit: StateCircuitConfig<F>,
-    // tx_circuit: TxCircuitConfig<F>,
-    // sig_circuit: SigCircuitConfig<F>,
-    // modexp_circuit: ModExpCircuitConfig,
-    // ecc_circuit: EccCircuitConfig<F>,
-    // #[cfg(not(feature = "poseidon-codehash"))]
-    // bytecode_circuit: BytecodeCircuitConfig<F>,
-    // #[cfg(feature = "poseidon-codehash")]
-    // bytecode_circuit: ToHashBlockCircuitConfig<F, HASHBLOCK_BYTES_IN_FIELD>,
-    // copy_circuit: CopyCircuitConfig<F>,
-    // keccak_circuit: KeccakCircuitConfig<F>,
-    // poseidon_circuit: PoseidonCircuitConfig<F>,
-    // pi_circuit: PiCircuitConfig<F>,
-    // exp_circuit: ExpCircuitConfig<F>,
-    // rlp_circuit: RlpCircuitConfig<F>,
+    evm_circuit: EvmCircuitConfig<F>,
+    state_circuit: StateCircuitConfig<F>,
+    tx_circuit: TxCircuitConfig<F>,
+    sig_circuit: SigCircuitConfig<F>,
+    modexp_circuit: ModExpCircuitConfig,
+    ecc_circuit: EccCircuitConfig<F>,
+    #[cfg(not(feature = "poseidon-codehash"))]
+    bytecode_circuit: BytecodeCircuitConfig<F>,
+    #[cfg(feature = "poseidon-codehash")]
+    bytecode_circuit: ToHashBlockCircuitConfig<F, HASHBLOCK_BYTES_IN_FIELD>,
+    copy_circuit: CopyCircuitConfig<F>,
+    keccak_circuit: KeccakCircuitConfig<F>,
+    poseidon_circuit: PoseidonCircuitConfig<F>,
+    pi_circuit: PiCircuitConfig<F>,
+    exp_circuit: ExpCircuitConfig<F>,
+    rlp_circuit: RlpCircuitConfig<F>,
     /// Mpt Circuit
     #[cfg(feature = "zktrie")]
     mpt_circuit: MptCircuitConfig<F>,
@@ -389,19 +389,19 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
             poseidon_table,
             u8_table,
             u16_table,
-            // evm_circuit,
-            // state_circuit,
-            // copy_circuit,
-            // bytecode_circuit,
-            // keccak_circuit,
-            // poseidon_circuit,
-            // pi_circuit,
-            // rlp_circuit,
-            // tx_circuit,
-            // exp_circuit,
-            // sig_circuit,
-            // modexp_circuit,
-            // ecc_circuit,
+            evm_circuit,
+            state_circuit,
+            copy_circuit,
+            bytecode_circuit,
+            keccak_circuit,
+            poseidon_circuit,
+            pi_circuit,
+            rlp_circuit,
+            tx_circuit,
+            exp_circuit,
+            sig_circuit,
+            modexp_circuit,
+            ecc_circuit,
             #[cfg(feature = "zktrie")]
             mpt_circuit,
             blob_circuit,
@@ -611,14 +611,14 @@ impl<
     /// Returns suitable inputs for the SuperCircuit.
     fn instance(&self) -> Vec<Vec<Fr>> {
         let mut instance = Vec::new();
-        // instance.extend_from_slice(&self.keccak_circuit.instance());
-        // instance.extend_from_slice(&self.pi_circuit.instance());
-        // instance.extend_from_slice(&self.tx_circuit.instance());
-        // instance.extend_from_slice(&self.bytecode_circuit.instance());
-        // instance.extend_from_slice(&self.copy_circuit.instance());
-        // instance.extend_from_slice(&self.state_circuit.instance());
-        // instance.extend_from_slice(&self.exp_circuit.instance());
-        // instance.extend_from_slice(&self.evm_circuit.instance());
+        instance.extend_from_slice(&self.keccak_circuit.instance());
+        instance.extend_from_slice(&self.pi_circuit.instance());
+        instance.extend_from_slice(&self.tx_circuit.instance());
+        instance.extend_from_slice(&self.bytecode_circuit.instance());
+        instance.extend_from_slice(&self.copy_circuit.instance());
+        instance.extend_from_slice(&self.state_circuit.instance());
+        instance.extend_from_slice(&self.exp_circuit.instance());
+        instance.extend_from_slice(&self.evm_circuit.instance());
         instance.extend_from_slice(&self.blob_circuit.instance());
 
 
