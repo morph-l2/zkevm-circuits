@@ -380,6 +380,7 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
                 challenges: challenges_expr, 
             },
         );
+        log_circuit_info(meta, "blob circuit");
 
         SuperCircuitConfig {
             block_table,
@@ -706,6 +707,10 @@ impl<
             self.mpt_circuit
                 .synthesize_sub(&config.mpt_circuit, challenges, layouter)?;
         }
+
+        log::debug!("assigning blob_circuit");
+        self.blob_circuit
+            .synthesize_sub(&config.blob_circuit, challenges, layouter)?;
 
         log::debug!("super circuit synthesize_sub done");
         Ok(())

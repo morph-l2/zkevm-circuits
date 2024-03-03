@@ -360,9 +360,9 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 result
             },
         )?;
-        for (i, v) in result_limbs.iter().enumerate() {
-            layouter.constrain_instance(v.cell(), config.instance, i)?;
-        }
+        // for (i, v) in result_limbs.iter().enumerate() {
+        //     layouter.constrain_instance(v.cell(), config.instance, i)?;
+        // }
 
         println!("finish assign");
         Ok(())
