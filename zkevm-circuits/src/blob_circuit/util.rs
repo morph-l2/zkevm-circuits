@@ -206,7 +206,7 @@ pub fn fp_is_zero<F: Field>(
     let mut partial_and = gate.load_constant(ctx, F::from(1));
     for limb in x_fp_limbs {
         let is_zero_limb = gate.is_equal(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(zero));
-        partial_and = gate.and(ctx, QuantumCell::Existing(is_zero_limb), Constant(F::from(1)));
+        partial_and = gate.and(ctx, QuantumCell::Existing(is_zero_limb), QuantumCell::Existing(partial_and));
     }
     partial_and
 }
