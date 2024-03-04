@@ -49,7 +49,7 @@ fn test_blob_consistency(){
 
     let instance = circuit.instance();
 
-    let prover = match MockProver::<Fr>::run(20, &circuit, instance) {
+    let prover = match MockProver::<Fr>::run(19, &circuit, instance) {
         Ok(prover) => prover,
         Err(e) => panic!("{e:#?}"),
     };

@@ -122,7 +122,7 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             num_limbs,
             modulus::<Fp>(),
             0,
-            20, // k
+            19, // k
         );
 
         let instance = meta.instance_column();
@@ -282,8 +282,6 @@ impl<F: Field> BlobCircuit<F>{
         let select_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &cp_is_not_root_of_unity);
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
-        
-        ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
         log::trace!("limb 1 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
         log::trace!("limb 2 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
@@ -316,7 +314,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (10000,10000)
+        (1<<19,1<<19)
     }
 
     /// Compute the public inputs for this circuit.
@@ -357,13 +355,18 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 
                 let result = self.assign(&mut ctx, &fp_chip, _challenges);
 
+
+                fp_chip.finalize(&mut ctx);
+
+                ctx.print_stats(&["blobCircuit: FpConfig context"]);
+
                 result
             },
         )?;
         // for (i, v) in result_limbs.iter().enumerate() {
         //     layouter.constrain_instance(v.cell(), config.instance, i)?;
         // }
-
+        
         println!("finish assign");
         Ok(())
     }
