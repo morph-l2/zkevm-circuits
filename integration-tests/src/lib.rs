@@ -24,7 +24,7 @@ use std::{
 use url::Url;
 
 /// Geth dev chain ID
-pub const CHAIN_ID: u64 = 1337;
+pub const CHAIN_ID: u64 = 2710;
 /// Path to the test contracts
 pub const CONTRACTS_PATH: &str = "contracts";
 /// List of contracts as (ContractName, ContractSolidityFile)
@@ -38,7 +38,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
 /// Path to gen_blockchain_data output file
 pub const GENDATA_OUTPUT_PATH: &str = "gendata_output.json";
 
-const GETH0_URL_DEFAULT: &str = "http://52.37.45.56:30303";
+const GETH0_URL_DEFAULT: &str = "https://rpc-testnet.morphl2.io";
 
 lazy_static! {
     /// URL of the integration test geth0 instance, which contains blocks for which proofs will be
