@@ -89,7 +89,7 @@ fn test_partial_blob_consistency(){
         index: index,
         partial_blob: blob.clone(),
         partial_result: result,
-        _marker: PhantomData,
+        _marker: PhantomData::default(),
     };    
 
     let instance = circuit.instance();
