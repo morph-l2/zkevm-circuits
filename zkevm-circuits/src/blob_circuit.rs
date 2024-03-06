@@ -402,7 +402,8 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 let mut ctx = fp_chip.new_context(region);
                 
                 let result = self.assign(&mut ctx, &fp_chip);
-                fp_chip.finalize(&mut ctx);
+                
+                // fp_chip.finalize(&mut ctx);
 
                 ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
