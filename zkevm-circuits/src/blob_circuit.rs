@@ -1,3 +1,4 @@
+use ethers_core::types::TxpoolStatus;
 use halo2_base::{
     Context,
     utils::{
@@ -13,7 +14,7 @@ use halo2_proofs::{
 
 use bls12_381::Scalar as Fp;
 use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
+use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, Transaction}};
 use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
 use rand::rngs::OsRng;
@@ -80,8 +81,8 @@ impl<F: Field> BlobCircuit<F> {
         }
     }
 
-    pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
-        match block_to_blob(block) {
+    pub fn partial_blob(txs: &Vec<Transaction>) -> Vec<Fp> {
+        match block_to_blob(txs) {
             Ok(blob) => {
                 let mut result: Vec<Fp> = Vec::new();
                 for chunk in blob.chunks(32) {
@@ -312,7 +313,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
             batch_commit: block.batch_commit.to_scalar().unwrap(), 
             challenge_point: Fp::from_bytes(&block.challenge_point.to_le_bytes()).unwrap(),
             index: block.index,
-            partial_blob: Self::partial_blob(block),
+            partial_blob: Self::partial_blob(&block.txs),
             partial_result: Fp::from_bytes(&block.partial_result.to_le_bytes()).unwrap(),
             _marker: Default::default(),
         }
@@ -374,10 +375,9 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 
-pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
+pub fn block_to_blob(txs: &Vec<Transaction>) -> Result<Vec<u8>, String> {
     // get data from block.txs.rlp_signed
-    let data: Vec<u8> = block
-        .txs
+    let data: Vec<u8> = txs
         .iter()
         .flat_map(|tx| &tx.rlp_signed)
         .cloned()
