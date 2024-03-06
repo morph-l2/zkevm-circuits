@@ -17,6 +17,7 @@ impl Prover {
         let instances = circuit.instances();
         let mock_prover = MockProver::<Fr>::run(degree, circuit, instances).unwrap();
         
+        
         mock_prover.assert_satisfied_par();
 
         assert_eq!(mock_prover.verify(), Ok(()));

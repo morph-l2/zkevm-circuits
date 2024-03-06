@@ -1639,7 +1639,7 @@ impl<F: Field> SubCircuit<F> for PiCircuit<F> {
                     .map(|byte| F::from(byte as u64)),
             )
             .collect::<Vec<F>>();
-
+        log::trace!("pi instance {:?}", public_inputs);
         vec![public_inputs]
     }
 
