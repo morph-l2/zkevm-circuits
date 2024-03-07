@@ -14,7 +14,7 @@ use halo2_proofs::{
 };
 use rand::{Rng, RngCore};
 use std::marker::PhantomData;
-use bls12_381::Scalar as Fp;
+use bls12_381::{Scalar as Fp};
 use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
 use rand::rngs::OsRng;
 
@@ -65,6 +65,7 @@ fn test_partial_blob_consistency(){
         .map(|_| Fp::random(OsRng))
         .collect();
     
+
     log::trace!("blob:{:?}", blob);
 
     let index = 0;

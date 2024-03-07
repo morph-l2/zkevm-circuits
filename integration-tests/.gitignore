@@ -1,1 +1,3 @@
 gendata_output.json
+!*.json
+!*.sh

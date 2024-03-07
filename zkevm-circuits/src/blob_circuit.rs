@@ -19,7 +19,7 @@ use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
 use rand::rngs::OsRng;
 
-mod util;
+pub mod util;
 mod test;
 mod dev;
 mod scalar_field_element;
@@ -89,7 +89,9 @@ impl<F: Field> BlobCircuit<F> {
                     let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
                     result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
                 }
+                log::trace!("partial blob: {:?}", result);
                 result
+                
             }
             Err(_) => Vec::new(),
         }
@@ -308,11 +310,12 @@ impl<F: Field> BlobCircuit<F>{
         let width_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::from(BLOB_WIDTH as u64)));
         let factor = fp_chip.divide(ctx, &cp_to_the_width_minus_one, &width_fp);
         barycentric_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &factor);
-    
+        
         // === STEP 3: select between the two case ===
         // if challenge_point is a root of unity(index..index + partial_blob_len), then result = blob[i]
         // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
         // else result = barycentric_evaluation
+        // (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH)
         for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
             let denominator_i_no_carry = fp_chip.sub_no_carry(
                 ctx,
@@ -338,13 +341,13 @@ impl<F: Field> BlobCircuit<F>{
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
 
-        log::trace!("limb 1 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
-        log::trace!("limb 2 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
-        log::trace!("limb 3 \n barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
+        log::trace!("limb 1 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
+        log::trace!("limb 2 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
+        log::trace!("limb 3 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
 
-        log::trace!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
-        log::trace!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
-        log::trace!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
+        log::trace!("limb 1 reconstructed {:?}", result.truncation.limbs[0].value());
+        log::trace!("limb 2 reconstructed {:?}", result.truncation.limbs[1].value());
+        log::trace!("limb 3 reconstructed {:?}", result.truncation.limbs[2].value());
 
         let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
         

@@ -203,6 +203,7 @@ pub fn fp_is_zero<F: Field>(
 ) -> AssignedValue<F> {
     let zero = gate.load_zero(ctx);
     let x_fp_limbs = x_fp.limbs();
+
     let mut partial_and = gate.load_constant(ctx, F::from(1));
     for limb in x_fp_limbs {
         let is_zero_limb = gate.is_equal(ctx, QuantumCell::Existing(limb.clone()), QuantumCell::Existing(zero));
@@ -327,6 +328,9 @@ pub fn poly_eval(values: Vec<Fp>, x: Fp, omega: Fp) -> Fp {
 }
 
 pub fn poly_eval_partial(values: Vec<Fp>, x: Fp, omega: Fp, index: usize) -> Fp {
+
+    log::trace!("x, index and blob for compute partial result: {:?}, {:?}, {:?}", x, index, values);
+
     let n = values.len();
 
     let mut acc = Fp::zero();
