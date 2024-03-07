@@ -5,15 +5,16 @@ use halo2_base::{
     gates::GateInstructions, AssignedValue,
 };
 
-use halo2_ecc::fields::{fp::{FpConfig, FpStrategy}, FieldChip};
+use halo2_ecc::{fields::{fp::{FpConfig, FpStrategy}, FieldChip}, bigint::CRTInteger};
 use halo2_proofs::{
     circuit::{Layouter, Value},
     plonk::{ConstraintSystem, Error, Expression, Column, Instance},
 };
 
-use bls12_381::Scalar as Fp;
+use bls12_381::{Scalar as Fp};
 use itertools::Itertools;
 use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
+
 use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
 use rand::rngs::OsRng;
@@ -21,6 +22,8 @@ use rand::rngs::OsRng;
 pub mod util;
 mod test;
 mod dev;
+mod scalar_field_element;
+use scalar_field_element::ScalarFieldElement;
 
 use util::*;
 
@@ -28,8 +31,6 @@ use util::*;
 pub const BLOB_WIDTH: usize = 4096;
 pub const BLOB_WIDTH_BITS: u32 = 12;
 
-pub const K: usize = 14;
-pub const LOOKUP_BITS: usize = 10;
 
 
 #[derive(Clone, Debug)]
@@ -108,10 +109,8 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
     ) -> Self {
         let num_limbs = 3;
         let limb_bits = 88;
-        #[cfg(feature = "onephase")]
+
         let num_advice = [35];
-        #[cfg(not(feature = "onephase"))]
-        let num_advice = [35, 1];
 
         let fp_config = FpConfig::configure(
             meta,
@@ -119,12 +118,12 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             &num_advice,
             &[17], // num lookup advice
             1,     // num fixed
-            10,    // lookup bits
+            13,    // lookup bits
             limb_bits,
             num_limbs,
             modulus::<Fp>(),
             0,
-            20, // k
+            19, // k
         );
 
         let instance = meta.instance_column();
@@ -141,11 +140,67 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
 } 
 
 impl<F: Field> BlobCircuit<F>{
+    pub fn assign_new(
+        &self,
+        ctx: &mut Context<F>,
+        fp_chip: &FpConfig<F, Fp>,
+    ) -> Result<Vec<AssignedValue<F>>, Error> {
+        let one = ScalarFieldElement::constant(Fp::one());
+        let blob_width = ScalarFieldElement::constant(u64::try_from(BLOB_WIDTH).unwrap().into());
+        let blob_width_th_root_of_unity =
+            Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+        let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
+            .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
+            .collect();
+        let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity);
+        // let rou_array:[Fp; 4096] = roots_of_unity_brp.try_into().unwrap();
+
+        // let blob:[Fp; 4096] = self.partial_blob.clone().try_into().unwrap();
+        let index = self.index;
+        let len = self.partial_blob.len();
+
+        let blob = self.partial_blob.clone().into_iter().map(ScalarFieldElement::private);
+        let rou = roots_of_unity_brp.clone()
+                                            .into_iter()
+                                            .map(ScalarFieldElement::constant)
+                                            .enumerate()
+                                            .filter_map(|(i, x)| 
+                                                if i >= index && i< index + len{
+                                                    Some(x)
+                                                } else{
+                                                    None
+                                                }
+                                            );
+                                            
+        let z = ScalarFieldElement::private(self.challenge_point);
+ 
+        let p = ((0..12).fold(z.clone(), |square, _| square.clone() * square) - one)
+            * rou.into_iter()
+                .zip_eq(blob)
+                .map(|(root, f)| f * (root.clone() / (z.clone() - root.clone())).carry())
+                .reduce(|a, b| (a + b).carry()) // TODO: can 4096 additions happen without overflow, yes but you need to add this in
+                // a divide and conquer way. you need to add these in a tree like
+                // manner so that it's clear to the context that the number of bits is not too
+                // large....
+                .unwrap()
+                .carry()
+            / blob_width;
+
+
+        let result = p.resolve(ctx, &fp_chip);
+        let cp = z.resolve(ctx, &fp_chip);
+        log::trace!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
+        log::trace!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
+        log::trace!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
+
+        let result = vec![cp.truncation.limbs[0], cp.truncation.limbs[1], cp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
+        
+        Ok(result)
+    }
     pub(crate) fn assign(
         &self,
         ctx: &mut Context<F>,
         fp_chip: &FpConfig<F, Fp>,
-        challenges: &Challenges<Value<F>>,
     ) ->  Result<Vec<AssignedValue<F>>, Error>{
 
         let gate = &fp_chip.range.gate;
@@ -285,8 +340,6 @@ impl<F: Field> BlobCircuit<F>{
         let select_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &cp_is_not_root_of_unity);
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
-        
-        ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
         log::trace!("limb 1 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
         log::trace!("limb 2 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
@@ -319,7 +372,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (0,1<<20)
+        (1<<19,1<<19)
     }
 
     /// Compute the public inputs for this circuit.
@@ -333,7 +386,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
         public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
 
-        log::trace!("compute blob circuit public input {:?}", public_inputs);
+        println!("compute blob public input {:?}", public_inputs);
 
         vec![public_inputs]
     }
@@ -346,19 +399,31 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     ) -> Result<(), Error> {
 
         println!("--------begin assign--------");
+
+        config.fp_config
+            .range()
+            .load_lookup_table(layouter)
+            .expect("load range lookup table");
+
         let result_limbs = layouter.assign_region(
             || "assign blob circuit", 
             |mut region| {
 
-                let fp_chip = FpConfig::<F, Fp>::construct(
-                    config.fp_config.range.clone(),
-                    config.limb_bits,
-                    config.num_limbs,
-                    modulus::<Fp>(),
-                );
+                // let fp_chip = FpConfig::<F, Fp>::construct(
+                //     config.fp_config.range.clone(),
+                //     config.limb_bits,
+                //     config.num_limbs,
+                //     modulus::<Fp>(),
+                // );
+                let fp_chip = &config.fp_config;
+
                 let mut ctx = fp_chip.new_context(region);
                 
-                let result = self.assign(&mut ctx, &fp_chip, _challenges);
+                let result = self.assign_new(&mut ctx, &fp_chip);
+
+                fp_chip.finalize(&mut ctx);
+
+                ctx.print_stats(&["blobCircuit: FpConfig context"]);
 
                 result
             },
@@ -366,7 +431,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         for (i, v) in result_limbs.iter().enumerate() {
             layouter.constrain_instance(v.cell(), config.instance, i)?;
         }
-
+        
         println!("finish assign");
         Ok(())
     }
