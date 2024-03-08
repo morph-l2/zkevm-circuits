@@ -4,7 +4,7 @@ use halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr};
 use once_cell::sync::Lazy;
 use snark_verifier_sdk::CircuitExt;
 
-pub static MOCK_PROVE: Lazy<bool> = Lazy::new(|| read_env_var("MOCK_PROVE", true));
+pub static MOCK_PROVE: Lazy<bool> = Lazy::new(|| read_env_var("MOCK_PROVE", false));
 
 impl Prover {
     pub fn assert_if_mock_prover<C: CircuitExt<Fr>>(id: &str, degree: u32, circuit: &C) {
