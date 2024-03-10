@@ -107,8 +107,8 @@ impl ChunkHash {
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
             data_hash,
-            challenge_point: block.challenge_point,
-            partial_result: block.partial_result,
+            challenge_point: block.partial_blob.challenge_point,
+            partial_result: block.partial_blob.partial_result,
             is_padding,
         }
     }

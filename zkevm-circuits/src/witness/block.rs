@@ -26,8 +26,7 @@ use halo2_proofs::circuit::Value;
 use itertools::Itertools;
 
 use super::{
-    mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep,
-    MptUpdates, RwMap, Transaction,
+    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, CircuitBlob, ExecStep, MptUpdates, RwMap, Transaction
 };
 use crate::util::Challenges;
 
@@ -77,14 +76,8 @@ pub struct Block<F> {
     pub start_l1_queue_index: u64,
     /// IO to/from precompile calls.
     pub precompile_events: PrecompileEvents,
-    /// batch_commit
-    pub batch_commit: Word,
-    /// challenge_point
-    pub challenge_point: Word,
-    /// index
-    pub index: usize,
-    /// partial_result
-    pub partial_result: Word,
+    /// blob
+    pub partial_blob: BlockBlob,
 }
 
 /// ...
@@ -578,10 +571,11 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
-        batch_commit: Word::zero(),
-        challenge_point: Word::zero(),
-        index: 0,
-        partial_result: Word::zero(),
+        partial_blob: BlockBlob::default(),
+        // batch_commit: Word::zero(),
+        // challenge_point: Word::zero(),
+        // index: 0,
+        // partial_result: Word::zero(),
     })
 }
 
