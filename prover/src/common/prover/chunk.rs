@@ -1,5 +1,5 @@
 use super::Prover;
-use crate::{config::LayerId, utils::gen_rng};
+use crate::{config::LayerId, utils::gen_rng, inner};
 use aggregator::extract_proof_and_instances_with_pairing_check;
 use anyhow::{anyhow, Result};
 use halo2_proofs::halo2curves::bn256::Fr;
@@ -49,6 +49,10 @@ impl Prover {
         )?;
         log::info!("Got inner snark: {name}");
 
+        let instance = inner_snark.clone().instances;
+
+        log::trace!("Super circuit Snark instance: {instance:?}");
+        
         // Check pairing for super circuit.
         extract_proof_and_instances_with_pairing_check(
             self.params(LayerId::Layer1.degree()),

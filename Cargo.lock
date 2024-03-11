@@ -43,7 +43,7 @@ name = "aggregator"
 version = "0.1.0"
 dependencies = [
  "ark-std 0.3.0",
- "bls12_381 0.7.0 (git+https://github.com/chengwenxi/bls12_381.git?branch=eip4844)",
+ "bls12_381",
  "env_logger 0.10.0",
  "eth-types",
  "ethers-core",
@@ -473,19 +473,6 @@ name = "block-padding"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
-
-[[package]]
-name = "bls12_381"
-version = "0.7.0"
-source = "git+https://github.com/chengwenxi/bls12_381.git?branch=eip4844#5a21fec34fb2f350a1635538de59ecd91d1c5a70"
-dependencies = [
- "ff 0.12.1",
- "group 0.12.1",
- "pairing",
- "pasta_curves",
- "rand_core",
- "subtle",
-]
 
 [[package]]
 name = "bls12_381"
@@ -6042,7 +6029,7 @@ name = "zkevm-circuits"
 version = "0.1.0"
 dependencies = [
  "array-init",
- "bls12_381 0.7.0 (git+https://github.com/morph-l2/bls12_381.git?branch=eip4844)",
+ "bls12_381",
  "bus-mapping",
  "cli-table",
  "criterion",

@@ -4,18 +4,16 @@ use eth_types::{
 };
 use halo2_base::utils::fe_to_biguint;
 use halo2_proofs::{
-    arithmetic::Field as HaloField,
-    dev::MockProver,
-    halo2curves::{
+    arithmetic::Field as HaloField, circuit, dev::MockProver, halo2curves::{
         bn256::Fr,
         group::Curve,
         secp256k1::{self, Secp256k1Affine},
-    },
+    }
 };
 use rand::{Rng, RngCore};
 use std::marker::PhantomData;
 use bls12_381::{Scalar as Fp};
-use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
+use crate::{blob_circuit::BlobCircuit, util::SubCircuit, witness::CircuitBlob};
 use rand::rngs::OsRng;
 
 use crate::blob_circuit::util::*;
@@ -37,19 +35,16 @@ fn test_blob_consistency(){
     let result = poly_eval(blob.clone(), challenge_point, omega);
     println!("real result:{}", result);
 
+    let circuit_blob = CircuitBlob::<Fr>::new(batch_commit, challenge_point, 0, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        batch_commit: batch_commit,
-        challenge_point: challenge_point,
-        index: 0,
-        partial_blob: blob.clone(),
-        partial_result: result,
+        blob:circuit_blob,
         _marker: PhantomData,
     };    
 
     let instance = circuit.instance();
 
-    let prover = match MockProver::<Fr>::run(20, &circuit, instance) {
+    let prover = match MockProver::<Fr>::run(19, &circuit, instance) {
         Ok(prover) => prover,
         Err(e) => panic!("{e:#?}"),
     };
@@ -61,15 +56,14 @@ fn test_blob_consistency(){
 fn test_partial_blob_consistency(){
     let batch_commit = Fr::random(OsRng);
 
-    // test blob[50] to blob[53]
-    let blob: Vec<Fp> = (50..54)
+    let blob: Vec<Fp> = (0..51)
         .map(|_| Fp::random(OsRng))
         .collect();
     
 
     log::trace!("blob:{:?}", blob);
 
-    let index = 50;
+    let index = 0;
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     let roots_of_unity: Vec<_> = (0..4096)
         .map(|i| omega.pow(&[i as u64, 0, 0, 0]))
@@ -77,21 +71,18 @@ fn test_partial_blob_consistency(){
     let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity); 
 
     //let challenge_point = roots_of_unity_brp[0];
-    // let challenge_point = Fp::random(OsRng);
+    //let challenge_point = Fp::random(OsRng);
     let challenge_point = Fp::from(128);
 
     let result = poly_eval_partial(blob.clone(), challenge_point, omega, index);
     
     log::trace!("real result:{}", result);
 
+    let circuit_blob = CircuitBlob::<Fr>::new(batch_commit, challenge_point, index, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        batch_commit: batch_commit,
-        challenge_point: challenge_point,
-        index: index,
-        partial_blob: blob.clone(),
-        partial_result: result,
-        _marker: PhantomData,
+        blob:circuit_blob,
+        _marker: PhantomData::default(),
     };    
 
     let instance = circuit.instance();

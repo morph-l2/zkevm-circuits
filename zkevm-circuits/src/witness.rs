@@ -11,6 +11,9 @@ pub use block::{
 mod bytecode;
 pub use bytecode::Bytecode;
 
+mod blob;
+pub use blob::{BlockBlob, CircuitBlob};
+
 mod call;
 pub use call::Call;
 

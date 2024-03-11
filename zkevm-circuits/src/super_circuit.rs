@@ -521,8 +521,10 @@ impl<
             let mpt = MptCircuit::<Fr>::min_num_rows_block(block);
             push("mpt", mpt);
         }
-        let blob = BlobCircuit::<Fr>::min_num_rows_block(block);
+
+        let blob = BlobCircuit::min_num_rows_block(block);
         push("blob", blob);
+
         let row_usage_details = rows
             .into_iter()
             .map(|(name, (row_num_real, row_num_total))| SubcircuitRowUsage {
@@ -563,7 +565,7 @@ impl<
             TxCircuit::<Fr>::unusable_rows(),
             // TODO: The PiCircuit unusable_rows fn is not implemented
             // and returns the arbitrary default number, causing overflow
-            PiCircuit::<Fr>::unusable_rows(),
+            // PiCircuit::<Fr>::unusable_rows(),
             BytecodeCircuit::<Fr>::unusable_rows(),
             CopyCircuit::<Fr>::unusable_rows(),
             ExpCircuit::<Fr>::unusable_rows(),
@@ -711,7 +713,7 @@ impl<
 
         log::debug!("assigning blob_circuit");
         self.blob_circuit
-            .synthesize_sub(&config.blob_circuit, &challenges, layouter)?;
+            .synthesize_sub(&config.blob_circuit, challenges, layouter)?;
 
         log::debug!("super circuit synthesize_sub done");
         Ok(())
