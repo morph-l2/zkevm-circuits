@@ -7,8 +7,8 @@ use halo2_base::{
 
 use halo2_ecc::{fields::{fp::{FpConfig, FpStrategy}, FieldChip}, bigint::CRTInteger};
 use halo2_proofs::{
-    circuit::{Layouter, Value},
-    plonk::{ConstraintSystem, Error, Expression, Column, Instance},
+    circuit::{Layouter, Value, Cell},
+    plonk::{ConstraintSystem, Error, Expression, Column, Instance, Assigned},
 };
 
 use bls12_381::{Scalar as Fp};
@@ -44,12 +44,24 @@ pub struct BlobCircuitConfigArgs<F: Field> {
 pub struct BlobCircuitConfig<F: Field> {
     /// Field config for bls12-381::Scalar.
     fp_config: FpConfig<F, Fp>,
-    instance: Column<Instance>,
     /// Number of limbs to represent Fp.
     num_limbs: usize,
     /// Number of bits per limb.
     limb_bits: usize,
     _marker: PhantomData<F>,
+}
+
+/// Circuit exported cells after synthesis, used for subcircuit
+#[derive(Clone, Debug)]
+pub struct BlobCircuitExports<V> {
+    /// challenge point
+    pub x_limb1: (Cell, Value<V>),
+    pub x_limb2: (Cell, Value<V>),
+    pub x_limb3: (Cell, Value<V>),
+    //partial result
+    pub y_limb1: (Cell, Value<V>),
+    pub y_limb2: (Cell, Value<V>),
+    pub y_limb3: (Cell, Value<V>),
 }
 
 /// BlobCircuit
@@ -65,8 +77,11 @@ pub struct BlobCircuit<F: Field> {
     pub partial_blob: Vec<Fp>,
     /// partial result
     pub partial_result: Fp,
+    pub(crate) exports: std::cell::RefCell<Option<BlobCircuitExports<Assigned<F>>>>,
     _marker: PhantomData<F>,
 }
+
+
 
 impl<F: Field> BlobCircuit<F> {
     /// Return a new BlobCircuit
@@ -77,6 +92,7 @@ impl<F: Field> BlobCircuit<F> {
             index,
             partial_blob,
             partial_result,
+            exports: std::cell::RefCell::new(None),
             _marker: PhantomData::default(),
         }
     }
@@ -125,13 +141,9 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             0,
             19, // k
         );
-
-        let instance = meta.instance_column();
-        meta.enable_equality(instance);
         
         Self {
             fp_config,
-            instance,
             num_limbs,
             limb_bits,
             _marker: PhantomData,
@@ -201,7 +213,7 @@ impl<F: Field> BlobCircuit<F>{
         &self,
         ctx: &mut Context<F>,
         fp_chip: &FpConfig<F, Fp>,
-    ) ->  Result<Vec<AssignedValue<F>>, Error>{
+    ) ->  Result<BlobCircuitExports<Assigned<F>>, Error>{
 
         let gate = &fp_chip.range.gate;
 
@@ -349,9 +361,16 @@ impl<F: Field> BlobCircuit<F>{
         log::trace!("limb 2 reconstructed {:?}", result.truncation.limbs[1].value());
         log::trace!("limb 3 reconstructed {:?}", result.truncation.limbs[2].value());
 
-        let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
+        //let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
         
-        Ok(result)
+        Ok(BlobCircuitExports {
+            x_limb1: (challenge_point_fp.truncation.limbs[0].cell, challenge_point_fp.truncation.limbs[0].value.into()),
+            x_limb2: (challenge_point_fp.truncation.limbs[1].cell, challenge_point_fp.truncation.limbs[1].value.into()),
+            x_limb3: (challenge_point_fp.truncation.limbs[2].cell, challenge_point_fp.truncation.limbs[2].value.into()),
+            y_limb1: (result.truncation.limbs[0].cell, result.truncation.limbs[0].value.into()),
+            y_limb2: (result.truncation.limbs[1].cell, result.truncation.limbs[1].value.into()),
+            y_limb3: (result.truncation.limbs[2].cell, result.truncation.limbs[2].value.into()),
+        })
     }
 }
 
@@ -367,6 +386,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
             index: block.index,
             partial_blob: Self::partial_blob(block),
             partial_result: Fp::from_bytes(&block.partial_result.to_le_bytes()).unwrap(),
+            exports: std::cell::RefCell::new(None),
             _marker: Default::default(),
         }
     }
@@ -378,17 +398,18 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     /// Compute the public inputs for this circuit.
     fn instance(&self) -> Vec<Vec<F>> {
 
-        let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
+        // let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
 
-        let result = poly_eval_partial(self.partial_blob.clone(), self.challenge_point, omega, self.index);
+        // let result = poly_eval_partial(self.partial_blob.clone(), self.challenge_point, omega, self.index);
 
-        let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
+        // let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
 
-        public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
+        // public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
 
-        println!("compute blob public input {:?}", public_inputs);
+        // println!("compute blob public input {:?}", public_inputs);
 
-        vec![public_inputs]
+        // vec![public_inputs]
+        vec![]
     }
 
     fn synthesize_sub(
@@ -398,23 +419,14 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         layouter: &mut impl Layouter<F>,
     ) -> Result<(), Error> {
 
-        println!("--------begin assign--------");
-
         config.fp_config
             .range()
             .load_lookup_table(layouter)
             .expect("load range lookup table");
 
-        let result_limbs = layouter.assign_region(
+        let export = layouter.assign_region(
             || "assign blob circuit", 
             |mut region| {
-
-                // let fp_chip = FpConfig::<F, Fp>::construct(
-                //     config.fp_config.range.clone(),
-                //     config.limb_bits,
-                //     config.num_limbs,
-                //     modulus::<Fp>(),
-                // );
                 let fp_chip = &config.fp_config;
 
                 let mut ctx = fp_chip.new_context(region);
@@ -428,11 +440,13 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 result
             },
         )?;
-        for (i, v) in result_limbs.iter().enumerate() {
-            layouter.constrain_instance(v.cell(), config.instance, i)?;
-        }
+
+        self.exports.borrow_mut().replace(export);
+
+        // for (i, v) in result_limbs.iter().enumerate() {
+        //     layouter.constrain_instance(v.cell(), config.instance, i)?;
+        // }
         
-        println!("finish assign");
         Ok(())
     }
 }

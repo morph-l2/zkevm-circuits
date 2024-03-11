@@ -1361,7 +1361,6 @@ impl KeccakTable {
                 challenge,
             )
         });
-
         vec![[
             Value::known(F::one()),
             input_rlc,

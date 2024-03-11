@@ -104,6 +104,7 @@ impl<F: Field, const MAX_TXS: usize, const MAX_CALLDATA: usize, const MAX_INNER_
             .0
             .public_data
             .pi_bytes(self.0.public_data.get_data_hash());
+        log::trace!("pi bytes:{:?}", pi_bytes);
         config
             .keccak_table
             .dev_load(&mut layouter, vec![&data_bytes, &pi_bytes], &challenges)?;

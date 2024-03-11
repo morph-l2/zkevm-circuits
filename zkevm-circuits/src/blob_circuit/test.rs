@@ -44,6 +44,7 @@ fn test_blob_consistency(){
         index: 0,
         partial_blob: blob.clone(),
         partial_result: result,
+        exports: std::cell::RefCell::new(None),
         _marker: PhantomData,
     };    
 
@@ -90,6 +91,7 @@ fn test_partial_blob_consistency(){
         index: index,
         partial_blob: blob.clone(),
         partial_result: result,
+        exports: std::cell::RefCell::new(None),
         _marker: PhantomData::default(),
     };    
 
