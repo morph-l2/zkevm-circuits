@@ -13,7 +13,7 @@ use halo2_proofs::{
 
 use bls12_381::{Scalar as Fp};
 use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block};
+use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block, evm_circuit::util::rlc};
 
 use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
@@ -362,7 +362,7 @@ impl<F: Field> BlobCircuit<F>{
         log::trace!("limb 3 reconstructed {:?}", result.truncation.limbs[2].value());
 
         //let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
-        
+
         Ok(BlobCircuitExports {
             x_limb1: (challenge_point_fp.truncation.limbs[0].cell, challenge_point_fp.truncation.limbs[0].value.into()),
             x_limb2: (challenge_point_fp.truncation.limbs[1].cell, challenge_point_fp.truncation.limbs[1].value.into()),
@@ -440,6 +440,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 result
             },
         )?;
+        let randomness = _challenges.evm_word();
 
         self.exports.borrow_mut().replace(export);
 

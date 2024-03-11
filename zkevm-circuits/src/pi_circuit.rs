@@ -783,6 +783,7 @@ impl<F: Field> PiCircuitConfig<F> {
                     true,
                     is_rpi_padding,
                     false,
+                    false,
                     challenges,
                 )?;
                 block_copy_cells.push((
@@ -833,6 +834,7 @@ impl<F: Field> PiCircuitConfig<F> {
                 &mut rpi_length_acc,
                 false,
                 is_rpi_padding,
+                false,
                 false,
                 challenges,
             )?;
@@ -898,7 +900,6 @@ impl<F: Field> PiCircuitConfig<F> {
             || data_hash_rlc,
         )?;
     
-        log::trace!("datahash row: rpi{:?}  rpi_len{:?} hash_rpi_rlc{:?}",data_bytes_rlc.clone().unwrap().value(), data_bytes_length.unwrap().value(), data_hash_rlc_cell.value());
         self.q_keccak.enable(region, data_hash_row)?;
         offset += 1;
 
@@ -915,6 +916,7 @@ impl<F: Field> PiCircuitConfig<F> {
             &public_data.chain_id.to_be_bytes(),
             &mut rpi_rlc_acc,
             &mut rpi_length_acc,
+            false,
             false,
             false,
             false,
@@ -957,6 +959,7 @@ impl<F: Field> PiCircuitConfig<F> {
                     false,
                     false,
                     false,
+                    false,
                     challenges,
                 )?;
                 Ok(cells[RPI_CELL_IDX].clone())
@@ -970,6 +973,7 @@ impl<F: Field> PiCircuitConfig<F> {
             &data_hash.to_fixed_bytes(),
             &mut rpi_rlc_acc,
             &mut rpi_length_acc,
+            false,
             false,
             false,
             false,
@@ -994,6 +998,7 @@ impl<F: Field> PiCircuitConfig<F> {
                     false,
                     false,
                     false,
+                    true,
                     challenges,
                 )?;
 
@@ -1071,6 +1076,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             false,
             true,
+            false,
             challenges,
         )?;
         let pi_hash_hi_byte_cells = cells[3..].to_vec();
@@ -1086,6 +1092,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             false,
             true,
+            false,
             challenges,
         )?;
         let pi_hash_lo_byte_cells = cells[3..].to_vec();
@@ -1116,6 +1123,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             true,
             true,
+            false,
             challenges,
         )?;
         let coinbase_cell = cells[RPI_CELL_IDX].clone();
@@ -1130,6 +1138,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             true,
             true,
+            false,
             challenges,
         )?;
         let difficulty_cell = cells[RPI_CELL_IDX].clone();
@@ -1211,6 +1220,7 @@ impl<F: Field> PiCircuitConfig<F> {
         is_block_context: bool, // if this field related to block context
         is_rpi_padding: bool,   // if this field is not included in the data bytes
         keccak_hi_lo: bool,     // if this field is related to keccak decomposition
+        is_blob: bool,          // if this field is related to blob
         challenges: &Challenges<Value<F>>,
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
         self.assign_field_in_pi_ext(
@@ -1223,6 +1233,7 @@ impl<F: Field> PiCircuitConfig<F> {
             is_rpi_padding,
             keccak_hi_lo,
             false,
+            is_blob,
             challenges,
         )
     }
@@ -1239,6 +1250,7 @@ impl<F: Field> PiCircuitConfig<F> {
         is_rpi_padding: bool,   // if this field is not included in the data bytes
         keccak_hi_lo: bool,     // if this field is related to keccak decomposition
         is_constant: bool,
+        is_blob: bool,          // if this field is related to blob
         challenges: &Challenges<Value<F>>,
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
         let len = value_be_bytes.len();
@@ -1247,6 +1259,12 @@ impl<F: Field> PiCircuitConfig<F> {
             (F::one(), challenges.evm_word())
         } else {
             (F::zero(), Value::known(F::from(BYTE_POW_BASE)))
+        };
+
+        let (is_field_rlc, t) = if is_blob {
+            (F::zero(), Value::known(F::from(BYTE_POW_BASE)))
+        } else {
+            (is_field_rlc, t)
         };
         // keccak_hi_lo = true if we are re-using rpi layout for keccak bytes
         let r = if keccak_hi_lo {
