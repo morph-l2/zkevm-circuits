@@ -22,13 +22,13 @@ pub struct CircuitBlob<F>{
     /// commit of batch
     pub batch_commit: F,
     /// challenge point x
-    pub challenge_point: Fp,
+    pub z: Fp,
     /// index of blob element    
     pub index: usize,
     /// partial blob element    
     pub partial_blob: Vec<Fp>,
     /// partial result
-    pub partial_result: Fp,
+    pub p_y: Fp,
 }
 
 impl BlockBlob{ 
@@ -38,13 +38,13 @@ impl BlockBlob{
 }
 
 impl<F: Field> CircuitBlob<F> {
-    pub fn new(batch_commit:F, challenge_point:Fp, index:usize, partial_blob:Vec<Fp>, partial_result: Fp)->Self{
+    pub fn new(batch_commit:F, z:Fp, index:usize, partial_blob:Vec<Fp>, p_y: Fp)->Self{
         CircuitBlob{
             batch_commit,
-            challenge_point,
+            z,
             index,
             partial_blob,
-            partial_result
+            p_y
         }
     }
 
@@ -65,12 +65,13 @@ impl<F: Field> CircuitBlob<F> {
     }
 
     pub fn new_from_block(block:&Block<F>)->Self{
+        let block_blob = &block.blob;
         CircuitBlob{
-            batch_commit: block.partial_blob.batch_commit.to_scalar().unwrap(), 
-            challenge_point: Fp::from_bytes(&block.partial_blob.x.to_le_bytes()).unwrap(),
-            index: block.partial_blob.index,
+            batch_commit: block_blob.batch_commit.to_scalar().unwrap(), 
+            z: Fp::from_bytes(&block_blob.x.to_le_bytes()).unwrap(),
+            index: block_blob.index,
             partial_blob: Self::partial_blob_from_block(block),
-            partial_result: Fp::from_bytes(&block.partial_blob.p_y.to_le_bytes()).unwrap(),
+            p_y: Fp::from_bytes(&block_blob.p_y.to_le_bytes()).unwrap(),
         }
     }
     

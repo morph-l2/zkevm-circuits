@@ -77,7 +77,7 @@ pub struct Block<F> {
     /// IO to/from precompile calls.
     pub precompile_events: PrecompileEvents,
     /// blob
-    pub partial_blob: BlockBlob,
+    pub blob: BlockBlob,
 }
 
 /// ...
@@ -571,7 +571,7 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
-        partial_blob: BlockBlob::default(),
+        blob: BlockBlob::default(),
         // batch_commit: Word::zero(),
         // challenge_point: Word::zero(),
         // index: 0,

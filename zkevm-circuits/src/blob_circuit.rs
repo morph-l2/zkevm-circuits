@@ -150,7 +150,7 @@ impl<F: Field> BlobCircuit<F>{
                                                 }
                                             );
                                             
-        let z = ScalarFieldElement::private(self.blob.challenge_point);
+        let z = ScalarFieldElement::private(self.blob.z);
  
         let p = ((0..12).fold(z.clone(), |square, _| square.clone() * square) - one)
             * rou.into_iter()
@@ -188,7 +188,7 @@ impl<F: Field> BlobCircuit<F>{
         let zero = gate.load_zero(ctx);
 
         //load challenge_point to fp_chip
-        let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.blob.challenge_point));
+        let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.blob.z));
 
         let blob = self
             .blob
@@ -355,9 +355,9 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
         let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
 
-        let result = poly_eval_partial(self.blob.partial_blob.clone(), self.blob.challenge_point, omega, self.blob.index);
+        let result = poly_eval_partial(self.blob.partial_blob.clone(), self.blob.z, omega, self.blob.index);
 
-        let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.blob.challenge_point), NUM_LIMBS, LIMB_BITS);
+        let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.blob.z), NUM_LIMBS, LIMB_BITS);
 
         public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
 
