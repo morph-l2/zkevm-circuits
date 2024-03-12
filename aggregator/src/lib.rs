@@ -4,7 +4,7 @@ mod aggregation;
 /// A batch is a list of chunk.
 mod batch;
 /// This module implements `Blob` related data types
-mod blob;
+// mod blob;
 // This module implements `Chunk` related data types.
 // A chunk is a list of blocks.
 mod chunk;

@@ -74,22 +74,6 @@ impl<F: Field> BlobCircuit<F> {
             _marker: PhantomData::default(),
         }
     }
-
-    pub fn partial_blob(txs: &Vec<Transaction>) -> Vec<Fp> {
-        match block_to_blob(txs) {
-            Ok(blob) => {
-                let mut result: Vec<Fp> = Vec::new();
-                for chunk in blob.chunks(32) {
-                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
-                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
-                }
-                log::trace!("partial blob: {:?}", result);
-                result
-                
-            }
-            Err(_) => Vec::new(),
-        }
-    }
 }
 
 
@@ -426,45 +410,4 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         println!("finish assign");
         Ok(())
     }
-}
-
-
-const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
-
-pub fn block_to_blob(txs: &Vec<Transaction>) -> Result<Vec<u8>, String> {
-    // get data from block.txs.rlp_signed
-    let data: Vec<u8> = txs
-        .iter()
-        .flat_map(|tx| &tx.rlp_signed)
-        .cloned()
-        .collect();
-
-    if data.len() > MAX_BLOB_DATA_SIZE {
-        return Err(format!("data is too large for blob. len={}", data.len()));
-    }
-
-    let mut result:Vec<u8> = vec![];
-
-    result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
-    let offset = std::cmp::min(27, data.len());
-    result.extend_from_slice(&data[..offset]);
-
-    if data.len() <= 27 {
-        for _ in 0..(27 - data.len()) {
-            result.push(0);
-        }
-        return Ok(result);
-    }
-    
-    for chunk in data[27..].chunks(31) {
-        let len = std::cmp::min(31, chunk.len());
-        result.push(0);
-        result.extend_from_slice(&chunk[..len]);
-        for _ in 0..(31 - len) {
-            result.push(0);
-        }
-    }
-
-    Ok(result)
 }

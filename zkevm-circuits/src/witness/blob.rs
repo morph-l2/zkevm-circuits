@@ -1,9 +1,11 @@
 use eth_types::{sign_types::SignData, Address, Field, ToLittleEndian, ToScalar, Word, U256};
 use bls12_381::{Scalar as Fp};
 
-use super::block::Block;
+use super::{block::Block,Transaction};
 
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
+#[derive(Clone, Debug, Default)]
+pub struct BlobValue(Vec<u8>);
 
 #[derive(Clone, Debug, Default)]
 pub struct BlockBlob{
@@ -31,6 +33,24 @@ pub struct CircuitBlob<F>{
     pub p_y: Fp,
 }
 
+// impl BlobValue{
+//     pub fn to_scalar(&self)->Vec<Fp> {
+//         match blob_from_tx(txs) {
+//             Ok(blob) => {
+//                 let mut result: Vec<Fp> = Vec::new();
+//                 for chunk in blob.chunks(32) {
+//                     let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
+//                     result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+//                 }
+//                 log::trace!("partial blob: {:?}", result);
+//                 result
+                
+//             }
+//             Err(_) => Vec::new(),
+//         }
+//     }
+// }
+
 impl BlockBlob{ 
     pub fn default()-> Self{
         BlockBlob { batch_commit: Word::zero(), x: Word::zero(), index: 0, p_y: Word::zero() }
@@ -48,39 +68,37 @@ impl<F: Field> CircuitBlob<F> {
         }
     }
 
-    pub fn partial_blob_from_block(block: &Block<F>) -> Vec<Fp> {
-        match block_to_blob(block) {
-            Ok(blob) => {
-                let mut result: Vec<Fp> = Vec::new();
-                for chunk in blob.chunks(32) {
-                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
-                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
-                }
-                log::trace!("partial blob: {:?}", result);
-                result
-                
-            }
-            Err(_) => Vec::new(),
-        }
-    }
-
     pub fn new_from_block(block:&Block<F>)->Self{
         let block_blob = &block.blob;
         CircuitBlob{
             batch_commit: block_blob.batch_commit.to_scalar().unwrap(), 
             z: Fp::from_bytes(&block_blob.x.to_le_bytes()).unwrap(),
             index: block_blob.index,
-            partial_blob: Self::partial_blob_from_block(block),
+            partial_blob: partial_blob_from_tx(&block.txs),
             p_y: Fp::from_bytes(&block_blob.p_y.to_le_bytes()).unwrap(),
         }
     }
     
 }
+pub fn partial_blob_from_tx(txs: &Vec<Transaction>) -> Vec<Fp> {
+    match blob_from_tx(txs) {
+        Ok(blob) => {
+            let mut result: Vec<Fp> = Vec::new();
+            for chunk in blob.0.chunks(32) {
+                let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
+                result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+            }
+            log::trace!("partial blob: {:?}", result);
+            result
+            
+        }
+        Err(_) => Vec::new(),
+    }
+}
 
-pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
+pub fn blob_from_tx(txs: &Vec<Transaction>) -> Result<BlobValue, String> {
     // get data from block.txs.rlp_signed
-    let data: Vec<u8> = block
-        .txs
+    let data: Vec<u8> = txs
         .iter()
         .flat_map(|tx| &tx.rlp_signed)
         .cloned()

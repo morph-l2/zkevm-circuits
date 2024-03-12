@@ -8,13 +8,10 @@ use std::{
 use crate::evm_circuit::{detect_fixed_table_tags, EvmCircuit};
 
 use crate::{
-    blob_circuit::{
-        block_to_blob,
-        util::{poly_eval_partial, FP_S},
-    },
+    blob_circuit::util::{poly_eval_partial, FP_S},
     evm_circuit::util::rlc,
     table::{BlockContextFieldTag, RwTableTag},
-    util::SubCircuit,
+    util::SubCircuit, witness::blob::{blob_from_tx},
 };
 use bus_mapping::{
     circuit_input_builder::{
@@ -28,7 +25,7 @@ use halo2_proofs::{circuit::Value, halo2curves::FieldExt};
 use itertools::Itertools;
 
 use super::{
-    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, CircuitBlob, ExecStep, MptUpdates, RwMap, Transaction
+    blob::{BlockBlob}, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep, MptUpdates, RwMap, Transaction
 };
 use crate::util::Challenges;
 
@@ -542,7 +539,7 @@ pub fn block_convert<F: Field>(
 
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     let mut batch_blob = [0u8; BLOB_DATA_SIZE];
-    let partial_result_bytes = block_to_blob(&txs).unwrap();
+    let partial_result_bytes = blob_from_tx(&txs).unwrap();
     batch_blob[0..partial_result_bytes.len()].copy_from_slice(&partial_result_bytes);
 
     let challenge_point = U256::from(1);
