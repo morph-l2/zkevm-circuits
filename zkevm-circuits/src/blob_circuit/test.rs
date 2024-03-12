@@ -35,7 +35,7 @@ fn test_blob_consistency(){
     let result = poly_eval(blob.clone(), challenge_point, omega);
     println!("real result:{}", result);
 
-    let circuit_blob = CircuitBlob::<Fr>::new(batch_commit, challenge_point, 0, blob.clone(), result);
+    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, 0, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
         blob:circuit_blob,
@@ -78,7 +78,7 @@ fn test_partial_blob_consistency(){
     
     log::trace!("real result:{}", result);
 
-    let circuit_blob = CircuitBlob::<Fr>::new(batch_commit, challenge_point, index, blob.clone(), result);
+    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, index, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
         blob:circuit_blob,

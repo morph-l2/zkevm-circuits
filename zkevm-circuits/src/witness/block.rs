@@ -1,8 +1,7 @@
 use bls12_381::Scalar as Fp;
 use ethers_core::types::Signature;
-use std::{
-    collections::{BTreeMap, HashMap},
-};
+use sha3::digest::KeyInit;
+use std::collections::{BTreeMap, HashMap};
 
 #[cfg(any(feature = "test", test))]
 use crate::evm_circuit::{detect_fixed_table_tags, EvmCircuit};
@@ -11,7 +10,7 @@ use crate::{
     blob_circuit::util::{poly_eval_partial, FP_S},
     evm_circuit::util::rlc,
     table::{BlockContextFieldTag, RwTableTag},
-    util::SubCircuit, witness::blob::{blob_from_tx},
+    util::SubCircuit, witness::blob,
 };
 use bus_mapping::{
     circuit_input_builder::{
@@ -25,7 +24,7 @@ use halo2_proofs::{circuit::Value, halo2curves::FieldExt};
 use itertools::Itertools;
 
 use super::{
-    blob::{BlockBlob}, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep, MptUpdates, RwMap, Transaction
+    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep, MptUpdates, RwMap, Transaction
 };
 use crate::util::Challenges;
 
@@ -539,13 +538,13 @@ pub fn block_convert<F: Field>(
 
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     let mut batch_blob = [0u8; BLOB_DATA_SIZE];
-    let partial_result_bytes = blob_from_tx(&txs).unwrap();
-    batch_blob[0..partial_result_bytes.len()].copy_from_slice(&partial_result_bytes);
+    let partial_result_bytes = blob::BlobValue::from_tx(&txs).unwrap();
+    batch_blob[0..partial_result_bytes.0.len()].copy_from_slice(&partial_result_bytes.0);
 
     let challenge_point = U256::from(1);
 
     let mut result: Vec<Fp> = Vec::new();
-    for chunk in partial_result_bytes.chunks(32) {
+    for chunk in partial_result_bytes.0.chunks(32) {
         let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();
         result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
     }
@@ -590,7 +589,11 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
-        blob: BlockBlob::default(),
+        blob: BlockBlob{ 
+            batch_commit: Word::zero(),
+            z: challenge_point,
+            index:0, 
+            p_y:partial_result },
     })
 }
 

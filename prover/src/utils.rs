@@ -168,7 +168,7 @@ pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>,
         Ok(block) => {
             let mut block = block;
             block.blob.batch_commit = batch_commit;
-            block.blob.x = challenge_point;
+            block.blob.z = challenge_point;
             block.blob.index = index;
             block.blob.p_y = partial_result;
             Ok(block)
