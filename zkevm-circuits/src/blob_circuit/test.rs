@@ -105,5 +105,17 @@ fn test_partial_blob_consistency(){
     assert_eq!(prover.verify(), Ok(()));
 }
 
+#[test]
+fn test_zero_blob(){
+    let blob: Vec<u8> = vec![0; 32 * 4096];
+    let mut result: Vec<Fp> = Vec::new();
+    for chunk in blob.chunks(32) {
+        let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
+        result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+    }
+
+    
+    log::trace!("partial blob: {:?}  len: {:?}", result, result.len());
+}
 
 

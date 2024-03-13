@@ -455,6 +455,10 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
 
 pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
+    if block.txs.len() == 0 {
+        let zero_blob: Vec<u8> = vec![0; 32 * 4096];
+        return Ok(zero_blob);
+    }
     // get data from block.txs.rlp_signed
     let data: Vec<u8> = block
         .txs
