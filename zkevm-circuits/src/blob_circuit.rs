@@ -243,7 +243,7 @@ impl<F: Field> BlobCircuit<F>{
         }
 
         let partial_blob_len = blob.len();
-        log::trace!("partial blob len{}", partial_blob_len);
+        log::trace!("partial blob len {}", partial_blob_len);
         // === STEP 2: compute the barycentric formula ===
         // spec reference:
         // https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md
@@ -292,12 +292,12 @@ impl<F: Field> BlobCircuit<F>{
         
 
         for i in 0..partial_blob_len as usize {
-            let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i + self.index].clone(), &blob[i].clone());
+            let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i].clone(), &blob[i].clone());
     
             let denominator_i_no_carry = fp_chip.sub_no_carry(
                 ctx,
                 &challenge_point_fp.clone(),
-                &roots_of_unity_brp[i + self.index].clone(),
+                &roots_of_unity_brp[i].clone(),
             );
             let denominator_i = fp_chip.carry_mod(ctx, &denominator_i_no_carry);
             // avoid division by zero
@@ -340,26 +340,26 @@ impl<F: Field> BlobCircuit<F>{
         // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
         // else result = barycentric_evaluation
         // (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH)
-        for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
-            let denominator_i_no_carry = fp_chip.sub_no_carry(
-                ctx,
-                &challenge_point_fp.clone(),
-                &roots_of_unity_brp[i].clone(),
-            );
-            let denominator_i = fp_chip.carry_mod(ctx, &denominator_i_no_carry);
-            // avoid division by zero
-            // safe_denominator_i = denominator_i       (denominator_i != 0)
-            // safe_denominator_i = 1                   (denominator_i == 0)
-            let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
-            let is_zero_denominator_i =
-                cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
-            // update `cp_is_not_root_of_unity`
-            // cp_is_not_root_of_unity = 1          (initialize)
-            // cp_is_not_root_of_unity = 0          (denominator_i == 0)
-            let non_zero_denominator_i =
-                fp_chip.sub_no_carry(ctx, &one_fp.clone(), &is_zero_denominator_i.clone());
-            cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
-        }
+        // for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
+        //     let denominator_i_no_carry = fp_chip.sub_no_carry(
+        //         ctx,
+        //         &challenge_point_fp.clone(),
+        //         &roots_of_unity_brp[i].clone(),
+        //     );
+        //     let denominator_i = fp_chip.carry_mod(ctx, &denominator_i_no_carry);
+        //     // avoid division by zero
+        //     // safe_denominator_i = denominator_i       (denominator_i != 0)
+        //     // safe_denominator_i = 1                   (denominator_i == 0)
+        //     let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
+        //     let is_zero_denominator_i =
+        //         cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
+        //     // update `cp_is_not_root_of_unity`
+        //     // cp_is_not_root_of_unity = 1          (initialize)
+        //     // cp_is_not_root_of_unity = 0          (denominator_i == 0)
+        //     let non_zero_denominator_i =
+        //         fp_chip.sub_no_carry(ctx, &one_fp.clone(), &is_zero_denominator_i.clone());
+        //     cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
+        // }
         
         let select_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &cp_is_not_root_of_unity);
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);

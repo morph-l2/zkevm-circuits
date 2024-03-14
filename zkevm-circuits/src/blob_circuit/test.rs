@@ -69,16 +69,16 @@ fn test_partial_blob_consistency(){
 
     log::trace!("blob:{:?}", blob);
 
-    let index = 0;
+    let index = 50;
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     let roots_of_unity: Vec<_> = (0..4096)
         .map(|i| omega.pow(&[i as u64, 0, 0, 0]))
         .collect();
     let roots_of_unity_brp = bit_reversal_permutation(roots_of_unity); 
 
-    //let challenge_point = roots_of_unity_brp[0];
+    let challenge_point = roots_of_unity_brp[0];
     //let challenge_point = Fp::random(OsRng);
-    let challenge_point = Fp::from(128);
+    // let challenge_point = Fp::from(128);
 
     let result = poly_eval_partial(blob.clone(), challenge_point, omega, index);
     
