@@ -173,18 +173,6 @@ pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>,
             block.challenge_point = challenge_point;
             block.index = index;
             block.partial_result = partial_result;
-            //add pihash preimage
-            let blob_cp_result = decompose_cp_result(&block);
-
-            //index 0: data_bytes  index 1: pi_bytes
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[0]);
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[1]);
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[2]);
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[3]);
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[4]);
-            block.keccak_inputs[1].extend_from_slice(&blob_cp_result[5]);
-            
-            log::trace!("kecck_inputs for pi:{:?}", block.keccak_inputs[1]);
             Ok(block)
         }
         Err(e) => Err(e),
@@ -192,10 +180,10 @@ pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>,
 }
 
 pub fn decompose_cp_result(block: &Block<Fr>) -> Vec<[u8; 32]>{
-    let cp_fe = Fp::from_bytes(&block.challenge_point.to_le_bytes()).unwrap();
+    let cp_fe = Fp::from_bytes(&block.challenge_point.clone().to_le_bytes()).unwrap();
     let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
     let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
-    let pr_fe = Fp::from_bytes(&block.partial_result.to_le_bytes()).unwrap();
+    let pr_fe = Fp::from_bytes(&block.partial_result.clone().to_le_bytes()).unwrap();
     let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
     let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
     preimage.append(&mut re_preimage);
