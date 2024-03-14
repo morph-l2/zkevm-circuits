@@ -224,11 +224,19 @@ impl<F: Field> BlobCircuit<F>{
         //load challenge_point to fp_chip
         let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.challenge_point));
 
-        let mut blob = self
+
+        let mut blob = (0..self.index)
+            .map(|_| load_private(fp_chip, ctx, Value::known(Fp::from(0))))
+            .collect::<Vec<_>>();
+
+
+        let real_blob = self
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
             .collect::<Vec<_>>();
+
+        blob.extend_from_slice(&real_blob);
 
         while blob.len() < 4096 {
             blob.push(load_private(fp_chip, ctx, Value::known(Fp::from(0))));
