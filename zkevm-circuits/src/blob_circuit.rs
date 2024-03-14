@@ -440,7 +440,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
                 result
             },
         )?;
-        let randomness = _challenges.evm_word();
 
         self.exports.borrow_mut().replace(export);
 
