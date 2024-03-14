@@ -224,11 +224,15 @@ impl<F: Field> BlobCircuit<F>{
         //load challenge_point to fp_chip
         let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.challenge_point));
 
-        let blob = self
+        let mut blob = self
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
             .collect::<Vec<_>>();
+
+        while blob.len() < 4096 {
+            blob.push(load_private(fp_chip, ctx, Value::known(Fp::from(0))));
+        }
 
         let partial_blob_len = blob.len();
         log::trace!("partial blob len{}", partial_blob_len);
