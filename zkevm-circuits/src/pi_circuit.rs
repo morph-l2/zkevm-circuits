@@ -240,7 +240,12 @@ impl PublicData {
         );
 
         let pi_bytes = self.pi_bytes(data_hash);
+
+        log::trace!("pi bytes:{:?}", pi_bytes);
+        
         let pi_hash = keccak256(pi_bytes);
+
+        log::trace!("pi hash:{:?}", pi_hash);
 
         H256(pi_hash)
     }

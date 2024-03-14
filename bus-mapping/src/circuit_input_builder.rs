@@ -715,6 +715,15 @@ impl CircuitInputBuilder {
 /// block.
 pub fn keccak_inputs(block: &Block, code_db: &CodeDB) -> Result<Vec<Vec<u8>>, Error> {
     let mut keccak_inputs = Vec::new();
+    // PI circuit
+    keccak_inputs.extend(keccak_inputs_pi_circuit(
+        block.chain_id,
+        block.start_l1_queue_index,
+        block.prev_state_root,
+        block.withdraw_root,
+        &block.headers,
+        block.txs(),
+    ));
     // Tx Circuit
     let txs: Vec<geth_types::Transaction> = block.txs.iter().map(|tx| tx.into()).collect();
     keccak_inputs.extend_from_slice(&keccak_inputs_tx_circuit(&txs)?);
@@ -730,15 +739,6 @@ pub fn keccak_inputs(block: &Block, code_db: &CodeDB) -> Result<Vec<Vec<u8>>, Er
         "keccak total len after ecrecover: {}",
         keccak_inputs.iter().map(|i| i.len()).sum::<usize>()
     );
-    // PI circuit
-    keccak_inputs.extend(keccak_inputs_pi_circuit(
-        block.chain_id,
-        block.start_l1_queue_index,
-        block.prev_state_root,
-        block.withdraw_root,
-        &block.headers,
-        block.txs(),
-    ));
     // Bytecode Circuit
     for _bytecode in code_db.0.values() {
         // keccak_inputs.push(bytecode.clone());
