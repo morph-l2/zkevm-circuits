@@ -85,7 +85,7 @@ fn empty_block() -> Block<Fr> {
     }
 }
 
-#[cfg(feature = "scroll")]
+// #[cfg(feature = "scroll")]
 #[test]
 fn serial_test_simple_pi() {
     const MAX_TXS: usize = 4;

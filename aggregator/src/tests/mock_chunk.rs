@@ -121,13 +121,6 @@ impl Circuit<Fr> for MockChunkCircuit {
                         .unwrap();
                     cells.push(cell)
                 }
-                for (_i, fe) in self.chunk.challenge_point().clone().into_iter().chain(self.chunk.partial_result().into_iter()).enumerate(){
-                    let cell = config
-                    .rlc_config
-                    .load_private(&mut region, &fe, &mut index)
-                    .unwrap();
-                    cells.push(cell)
-                }
 
                 Ok(cells)
             },
@@ -142,21 +135,19 @@ impl Circuit<Fr> for MockChunkCircuit {
 }
 
 impl CircuitExt<Fr> for MockChunkCircuit {
-    /// 32 elements from digest and 6 elements from x/y
+    /// 32 elements from digest
     fn num_instance(&self) -> Vec<usize> {
         let acc_len = if self.has_accumulator { ACC_LEN } else { 0 };
-        vec![DIGEST_LEN + acc_len + BLOB_POINT_LEN]
+        vec![DIGEST_LEN + acc_len]
     }
 
-    /// return vec![acc | public input hash | challenge_point_limbs | partial_result_limbs]
+    /// return vec![acc | public input hash]
     fn instances(&self) -> Vec<Vec<Fr>> {
         let acc_len = if self.has_accumulator { ACC_LEN } else { 0 };
         vec![iter::repeat(0)
             .take(acc_len)
             .chain(self.chunk.public_input_hash().as_bytes().iter().copied())
             .map(|x| Fr::from(x as u64))
-            .chain(self.chunk.challenge_point().into_iter())
-            .chain(self.chunk.partial_result().into_iter())
             .collect()]
     }
 }
@@ -164,9 +155,9 @@ impl CircuitExt<Fr> for MockChunkCircuit {
 #[test]
 fn test_mock_chunk_prover() {
     test_mock_chunk_prover_helper(true, true);
-    // test_mock_chunk_prover_helper(true, false);
-    // test_mock_chunk_prover_helper(false, true);
-    // test_mock_chunk_prover_helper(false, false);
+    test_mock_chunk_prover_helper(true, false);
+    test_mock_chunk_prover_helper(false, true);
+    test_mock_chunk_prover_helper(false, false);
 }
 
 fn test_mock_chunk_prover_helper(hash_accumulator: bool, is_padding: bool) {

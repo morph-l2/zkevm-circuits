@@ -3,7 +3,7 @@ use crate::{
     config::{LayerId, ZKEVM_DEGREES},
     consts::CHUNK_VK_FILENAME,
     io::try_to_read,
-    utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index},
+    utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index, decompose_cp_result},
     ChunkProof,
 };
 use aggregator::ChunkHash;
@@ -103,13 +103,27 @@ impl Prover {
     ) -> Result<ChunkProof> {
         assert!(!chunk_trace.is_empty());
 
-        let witness_block = chunk_trace_to_witness_block_with_index(
+        let mut witness_block = chunk_trace_to_witness_block_with_index(
             chunk_trace,
             batch_commit,
             challenge_point,
             index,
             partial_result,
         )?;
+        
+        //add pihash preimage
+        let blob_cp_result = decompose_cp_result(&witness_block);
+
+        //index 0: data_bytes  index 1: pi_bytes
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[0]);
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[1]);
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[2]);
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[3]);
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[4]);
+        witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[5]);
+        
+        log::trace!("kecck_inputs for pi:{:?}", witness_block.keccak_inputs[1]);
+
         log::info!("Got witness block");
 
         let name = name.map_or_else(
