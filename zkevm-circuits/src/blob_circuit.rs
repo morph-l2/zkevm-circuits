@@ -1,3 +1,4 @@
+use ethers_core::types::TxpoolStatus;
 use halo2_base::{
     Context,
     utils::{
@@ -13,11 +14,9 @@ use halo2_proofs::{
 
 use bls12_381::{Scalar as Fp};
 use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::Block, evm_circuit::util::rlc};
-
+use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, Transaction, CircuitBlob}, evm_circuit::util::rlc};
 use std::{io::Read, marker::PhantomData};
 use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
-use rand::rngs::OsRng;
 
 pub mod util;
 mod test;
@@ -30,8 +29,6 @@ use util::*;
 // BLOB_WIDTH must be a power of two
 pub const BLOB_WIDTH: usize = 4096;
 pub const BLOB_WIDTH_BITS: u32 = 12;
-
-
 
 #[derive(Clone, Debug)]
 pub struct BlobCircuitConfigArgs<F: Field> {
@@ -67,16 +64,17 @@ pub struct BlobCircuitExports<V> {
 /// BlobCircuit
 #[derive(Default, Clone, Debug)]
 pub struct BlobCircuit<F: Field> {
-    /// commit of batch
-    pub batch_commit: F,
-    /// challenge point x
-    pub challenge_point: Fp,
-    /// index of blob element    
-    pub index: usize,
-    /// partial blob element    
-    pub partial_blob: Vec<Fp>,
-    /// partial result
-    pub partial_result: Fp,
+    // /// commit of batch
+    // pub batch_commit: F,
+    // /// challenge point x
+    // pub challenge_point: Fp,
+    // /// index of blob element    
+    // pub index: usize,
+    // /// partial blob element    
+    // pub partial_blob: Vec<Fp>,
+    // /// partial result
+    // pub partial_result: Fp,
+    pub blob: CircuitBlob<F>,
     pub(crate) exports: std::cell::RefCell<Option<BlobCircuitExports<Assigned<F>>>>,
     _marker: PhantomData<F>,
 }
@@ -85,31 +83,11 @@ pub struct BlobCircuit<F: Field> {
 
 impl<F: Field> BlobCircuit<F> {
     /// Return a new BlobCircuit
-    pub fn new(batch_commit:F, challenge_point:Fp, index:usize, partial_blob:Vec<Fp>, partial_result: Fp) -> Self {
+    pub fn new(blob: CircuitBlob<F>) -> Self {
         Self {
-            batch_commit,
-            challenge_point,
-            index,
-            partial_blob,
-            partial_result,
+            blob,
             exports: std::cell::RefCell::new(None),
             _marker: PhantomData::default(),
-        }
-    }
-
-    pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
-        match block_to_blob(block) {
-            Ok(blob) => {
-                let mut result: Vec<Fp> = Vec::new();
-                for chunk in blob.chunks(32) {
-                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();  
-                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
-                }
-                log::trace!("partial blob: {:?}", result);
-                result
-                
-            }
-            Err(_) => Vec::new(),
         }
     }
 }
@@ -168,10 +146,10 @@ impl<F: Field> BlobCircuit<F>{
         // let rou_array:[Fp; 4096] = roots_of_unity_brp.try_into().unwrap();
 
         // let blob:[Fp; 4096] = self.partial_blob.clone().try_into().unwrap();
-        let index = self.index;
-        let len = self.partial_blob.len();
+        let index = self.blob.index;
+        let len = self.blob.partial_blob.len();
 
-        let blob = self.partial_blob.clone().into_iter().map(ScalarFieldElement::private);
+        let blob = self.blob.partial_blob.clone().into_iter().map(ScalarFieldElement::private);
         let rou = roots_of_unity_brp.clone()
                                             .into_iter()
                                             .map(ScalarFieldElement::constant)
@@ -184,7 +162,7 @@ impl<F: Field> BlobCircuit<F>{
                                                 }
                                             );
                                             
-        let z = ScalarFieldElement::private(self.challenge_point);
+        let z = ScalarFieldElement::private(self.blob.z);
  
         let p = ((0..12).fold(z.clone(), |square, _| square.clone() * square) - one)
             * rou.into_iter()
@@ -222,15 +200,14 @@ impl<F: Field> BlobCircuit<F>{
         let zero = gate.load_zero(ctx);
 
         //load challenge_point to fp_chip
-        let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.challenge_point));
+        let challenge_point_fp = load_private(fp_chip, ctx, Value::known(self.blob.z));
 
-
-        let mut blob = (0..self.index)
+        let mut blob = (0..self.blob.index)
             .map(|_| load_private(fp_chip, ctx, Value::known(Fp::from(0))))
             .collect::<Vec<_>>();
 
 
-        let real_blob = self
+        let real_blob = self.blob.
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
@@ -340,6 +317,7 @@ impl<F: Field> BlobCircuit<F>{
         // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
         // else result = barycentric_evaluation
         // (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH)
+
         // for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
         //     let denominator_i_no_carry = fp_chip.sub_no_carry(
         //         ctx,
@@ -393,11 +371,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
     fn new_from_block(block: &Block<F>) -> Self {
         Self{
-            batch_commit: block.batch_commit.to_scalar().unwrap(), 
-            challenge_point: Fp::from_bytes(&block.challenge_point.to_le_bytes()).unwrap(),
-            index: block.index,
-            partial_blob: Self::partial_blob(block),
-            partial_result: Fp::from_bytes(&block.partial_result.to_le_bytes()).unwrap(),
+            blob:CircuitBlob::<F>::new_from_block(block),
             exports: std::cell::RefCell::new(None),
             _marker: Default::default(),
         }
@@ -461,49 +435,4 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         
         Ok(())
     }
-}
-
-const MAX_BLOB_DATA_SIZE: usize = 4096 * 31 - 4;
-
-pub fn block_to_blob<F: Field>(block: &Block<F>) -> Result<Vec<u8>, String> {
-    if block.txs.len() == 0 {
-        let zero_blob: Vec<u8> = vec![0; 32 * 4096];
-        return Ok(zero_blob);
-    }
-    // get data from block.txs.rlp_signed
-    let data: Vec<u8> = block
-        .txs
-        .iter()
-        .flat_map(|tx| &tx.rlp_signed)
-        .cloned()
-        .collect();
-
-    if data.len() > MAX_BLOB_DATA_SIZE {
-        return Err(format!("data is too large for blob. len={}", data.len()));
-    }
-
-    let mut result:Vec<u8> = vec![];
-
-    result.push(0);
-    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
-    let offset = std::cmp::min(27, data.len());
-    result.extend_from_slice(&data[..offset]);
-
-    if data.len() <= 27 {
-        for _ in 0..(27 - data.len()) {
-            result.push(0);
-        }
-        return Ok(result);
-    }
-    
-    for chunk in data[27..].chunks(31) {
-        let len = std::cmp::min(31, chunk.len());
-        result.push(0);
-        result.extend_from_slice(&chunk[..len]);
-        for _ in 0..(31 - len) {
-            result.push(0);
-        }
-    }
-
-    Ok(result)
 }

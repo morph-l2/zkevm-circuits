@@ -1,18 +1,16 @@
-use bls12_381::Fp;
+use bls12_381::Scalar as Fp;
 use ethers_core::types::Signature;
-use std::{
-    collections::{BTreeMap, HashMap},
-    io::Write,
-    ptr::null,
-};
+use sha3::digest::KeyInit;
+use std::collections::{BTreeMap, HashMap};
 
 #[cfg(any(feature = "test", test))]
 use crate::evm_circuit::{detect_fixed_table_tags, EvmCircuit};
 
 use crate::{
+    blob_circuit::util::{poly_eval_partial, FP_S},
     evm_circuit::util::rlc,
     table::{BlockContextFieldTag, RwTableTag},
-    util::SubCircuit,
+    util::SubCircuit, witness::blob,
 };
 use bus_mapping::{
     circuit_input_builder::{
@@ -22,14 +20,15 @@ use bus_mapping::{
     Error,
 };
 use eth_types::{sign_types::SignData, Address, Field, ToLittleEndian, ToScalar, Word, U256};
-use halo2_proofs::circuit::Value;
+use halo2_proofs::{circuit::Value, halo2curves::FieldExt};
 use itertools::Itertools;
 
 use super::{
-    mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep,
-    MptUpdates, RwMap, Transaction,
+    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep, MptUpdates, RwMap, Transaction
 };
 use crate::util::Challenges;
+
+const BLOB_DATA_SIZE: usize = 4096 * 32;
 
 // TODO: Remove fields that are duplicated in`eth_block`
 /// Block is the struct used by all circuits, which contains all the needed
@@ -77,14 +76,8 @@ pub struct Block<F> {
     pub start_l1_queue_index: u64,
     /// IO to/from precompile calls.
     pub precompile_events: PrecompileEvents,
-    /// batch_commit
-    pub batch_commit: Word,
-    /// challenge_point
-    pub challenge_point: Word,
-    /// index
-    pub index: usize,
-    /// partial_result
-    pub partial_result: Word,
+    /// blob
+    pub blob: BlockBlob,
 }
 
 /// ...
@@ -529,23 +522,41 @@ pub fn block_convert<F: Field>(
         log::error!("withdraw root is not avaliable");
     }
 
+    let txs = block
+    .txs()
+    .iter()
+    .enumerate()
+    .map(|(idx, tx)| {
+        let next_block_num = if idx + 1 < num_txs {
+            block.txs()[idx + 1].block_num
+        } else {
+            last_block_num + 1
+        };
+        tx_convert(tx, idx + 1, chain_id, next_block_num)
+    })
+    .collect();
+
+    let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
+    let mut batch_blob = [0u8; BLOB_DATA_SIZE];
+    let partial_result_bytes = blob::BlobValue::from_tx(&txs).unwrap();
+    batch_blob[0..partial_result_bytes.0.len()].copy_from_slice(&partial_result_bytes.0);
+
+    let challenge_point = U256::from(1);
+
+    let mut result: Vec<Fp> = Vec::new();
+    for chunk in partial_result_bytes.0.chunks(32) {
+        let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();
+        result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+    }
+
+    let partial_result =
+        U256::from(poly_eval_partial(result, Fp::from_u128(1), omega, 0).to_bytes());
+
     Ok(Block {
         _marker: Default::default(),
         context: block.into(),
         rws,
-        txs: block
-            .txs()
-            .iter()
-            .enumerate()
-            .map(|(idx, tx)| {
-                let next_block_num = if idx + 1 < num_txs {
-                    block.txs()[idx + 1].block_num
-                } else {
-                    last_block_num + 1
-                };
-                tx_convert(tx, idx + 1, chain_id, next_block_num)
-            })
-            .collect(),
+        txs: txs,
         sigs: block.txs().iter().map(|tx| tx.signature).collect(),
         end_block_not_last,
         end_block_last,
@@ -578,10 +589,11 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
-        batch_commit: Word::zero(),
-        challenge_point: Word::zero(),
-        index: 0,
-        partial_result: Word::zero(),
+        blob: BlockBlob{ 
+            batch_commit: Word::zero(),
+            z: challenge_point,
+            index:0, 
+            p_y:partial_result },
     })
 }
 

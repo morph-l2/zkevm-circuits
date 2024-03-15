@@ -4,18 +4,16 @@ use eth_types::{
 };
 use halo2_base::utils::fe_to_biguint;
 use halo2_proofs::{
-    arithmetic::Field as HaloField,
-    dev::MockProver,
-    halo2curves::{
+    arithmetic::Field as HaloField, circuit, dev::MockProver, halo2curves::{
         bn256::Fr,
         group::Curve,
         secp256k1::{self, Secp256k1Affine},
-    },
+    }
 };
 use rand::{Rng, RngCore};
 use std::marker::PhantomData;
 use bls12_381::{Scalar as Fp};
-use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
+use crate::{blob_circuit::BlobCircuit, util::SubCircuit, witness::CircuitBlob};
 use rand::rngs::OsRng;
 
 use crate::blob_circuit::util::*;
@@ -37,13 +35,10 @@ fn test_blob_consistency(){
     let result = poly_eval(blob.clone(), challenge_point, omega);
     println!("real result:{}", result);
 
+    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, 0, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        batch_commit: batch_commit,
-        challenge_point: challenge_point,
-        index: 0,
-        partial_blob: blob.clone(),
-        partial_result: result,
+        blob:circuit_blob,
         exports: std::cell::RefCell::new(None),
         _marker: PhantomData,
     };    
@@ -84,13 +79,10 @@ fn test_partial_blob_consistency(){
     
     log::trace!("real result:{}", result);
 
+    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, index, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        batch_commit: batch_commit,
-        challenge_point: challenge_point,
-        index: index,
-        partial_blob: blob.clone(),
-        partial_result: result,
+        blob:circuit_blob,
         exports: std::cell::RefCell::new(None),
         _marker: PhantomData::default(),
     };    
