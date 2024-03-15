@@ -675,6 +675,9 @@ impl<
         log::debug!("assigning ecc_circuit");
         self.ecc_circuit
             .synthesize_sub(&config.ecc_circuit, challenges, layouter)?;
+        log::debug!("assigning blob_circuit");
+        self.blob_circuit
+            .synthesize_sub(&config.blob_circuit, challenges, layouter)?;
         log::debug!("assigning modexp_circuit");
         self.modexp_circuit
             .synthesize_sub(&config.modexp_circuit, challenges, layouter)?;
@@ -697,6 +700,7 @@ impl<
             layouter,
             self.state_circuit.exports.borrow().as_ref(),
             self.evm_circuit.exports.borrow().as_ref(),
+            self.blob_circuit.exports.borrow().as_ref(),
         )?;
 
         log::debug!("assigning rlp_circuit");
@@ -710,10 +714,6 @@ impl<
             self.mpt_circuit
                 .synthesize_sub(&config.mpt_circuit, challenges, layouter)?;
         }
-
-        log::debug!("assigning blob_circuit");
-        self.blob_circuit
-            .synthesize_sub(&config.blob_circuit, challenges, layouter)?;
 
         log::debug!("super circuit synthesize_sub done");
         Ok(())

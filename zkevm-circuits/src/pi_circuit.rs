@@ -7,13 +7,16 @@ mod param;
 #[cfg(any(feature = "test", test, feature = "test-circuits"))]
 mod test;
 
+
 use std::{cell::RefCell, collections::BTreeMap, iter, marker::PhantomData, str::FromStr};
 
-use crate::{evm_circuit::util::constraint_builder::ConstrainBuilderCommon, table::KeccakTable};
+use crate::{evm_circuit::util::constraint_builder::ConstrainBuilderCommon, table::KeccakTable, blob_circuit::BlobCircuitExports};
 use bus_mapping::circuit_input_builder::get_dummy_tx_hash;
-use eth_types::{Address, Field, Hash, ToBigEndian, ToWord, Word, H256};
+use eth_types::{Address, Field, Hash, ToBigEndian, ToWord, Word, H256, ToLittleEndian};
 use ethers_core::utils::keccak256;
 use halo2_proofs::plonk::{Assigned, Expression, Fixed, Instance};
+use halo2_proofs::halo2curves::bn256::Fr;
+use num::traits::ops::bytes;
 
 use crate::{
     table::{BlockTable, LookupTable, TxTable},
@@ -59,6 +62,9 @@ use crate::{
 use halo2_proofs::{circuit::SimpleFloorPlanner, plonk::Circuit};
 use itertools::Itertools;
 
+use bls12_381::Scalar as Fp;
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
+
 fn get_coinbase_constant() -> Address {
     let default_coinbase = if cfg!(feature = "scroll") {
         Address::from_str("0x5300000000000000000000000000000000000005").unwrap()
@@ -89,6 +95,10 @@ pub struct PublicData {
     pub next_state_root: Hash,
     /// Withdraw Trie Root
     pub withdraw_trie_root: Hash,
+    /// challenge point
+    pub challenge_point: Word,
+    /// partial result
+    pub partial_result: Word, 
 }
 
 impl Default for PublicData {
@@ -101,6 +111,8 @@ impl Default for PublicData {
             next_state_root: H256::zero(),
             withdraw_trie_root: H256::zero(),
             block_ctxs: Default::default(),
+            challenge_point: Word::zero(),
+            partial_result: Word::zero(),
         }
     }
 }
@@ -201,6 +213,8 @@ impl PublicData {
     }
 
     fn pi_bytes(&self, data_hash: H256) -> Vec<u8> {
+
+        let blob_cp_result = self.decompose_cp_result();
         iter::empty()
             .chain(self.chain_id.to_be_bytes())
             // state roots
@@ -209,6 +223,12 @@ impl PublicData {
             .chain(self.withdraw_trie_root.to_fixed_bytes())
             // data hash
             .chain(data_hash.to_fixed_bytes())
+            .chain(blob_cp_result[0])
+            .chain(blob_cp_result[1])
+            .chain(blob_cp_result[2])
+            .chain(blob_cp_result[3])
+            .chain(blob_cp_result[4])
+            .chain(blob_cp_result[5])
             .collect::<Vec<u8>>()
     }
 
@@ -220,9 +240,25 @@ impl PublicData {
         );
 
         let pi_bytes = self.pi_bytes(data_hash);
+
+        log::trace!("pi bytes:{:?}", pi_bytes);
+        
         let pi_hash = keccak256(pi_bytes);
 
+        log::trace!("pi hash:{:?}", pi_hash);
+
         H256(pi_hash)
+    }
+
+    fn decompose_cp_result(&self) -> Vec<[u8; 32]>{
+        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
+        let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
+        let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
+        let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
+        let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        preimage.append(&mut re_preimage);
+        preimage
     }
 }
 
@@ -660,6 +696,12 @@ struct Connections<F: Field> {
     start_state_root: AssignedCell<F, F>,
     end_state_root: AssignedCell<F, F>,
     withdraw_root: AssignedCell<F, F>,
+    x_limb1: AssignedCell<F, F>,
+    x_limb2: AssignedCell<F, F>,
+    x_limb3: AssignedCell<F, F>,
+    y_limb1: AssignedCell<F, F>,
+    y_limb2: AssignedCell<F, F>,
+    y_limb3: AssignedCell<F, F>,
 }
 
 impl<F: Field> PiCircuitConfig<F> {
@@ -746,6 +788,7 @@ impl<F: Field> PiCircuitConfig<F> {
                     true,
                     is_rpi_padding,
                     false,
+                    false,
                     challenges,
                 )?;
                 block_copy_cells.push((
@@ -797,6 +840,7 @@ impl<F: Field> PiCircuitConfig<F> {
                 false,
                 is_rpi_padding,
                 false,
+                false,
                 challenges,
             )?;
             tx_copy_cells.push(cells[RPI_CELL_IDX].clone());
@@ -840,7 +884,7 @@ impl<F: Field> PiCircuitConfig<F> {
 
         // assign keccak row for computing data_hash = keccak256(data bytes)
         let data_hash_row = offset;
-        data_bytes_rlc.unwrap().copy_advice(
+        data_bytes_rlc.clone().unwrap().copy_advice(
             || "data_bytes_rlc in the rpi col",
             region,
             self.raw_public_inputs,
@@ -848,7 +892,7 @@ impl<F: Field> PiCircuitConfig<F> {
         )?;
         let data_hash = public_data.get_data_hash();
         let data_hash_rlc = rlc_be_bytes(&data_hash.to_fixed_bytes(), challenges.evm_word());
-        data_bytes_length.unwrap().copy_advice(
+        data_bytes_length.clone().unwrap().copy_advice(
             || "data_bytes_length in the rpi_length_acc col",
             region,
             self.rpi_length_acc,
@@ -860,6 +904,7 @@ impl<F: Field> PiCircuitConfig<F> {
             data_hash_row,
             || data_hash_rlc,
         )?;
+    
         self.q_keccak.enable(region, data_hash_row)?;
         offset += 1;
 
@@ -867,7 +912,7 @@ impl<F: Field> PiCircuitConfig<F> {
         ///////// assign pi bytes ///////
         /////////////////////////////////
         let pi_bytes_start_row = offset;
-        let pi_bytes_end_row = pi_bytes_start_row + N_BYTES_U64 + N_BYTES_WORD * 4;
+        let pi_bytes_end_row = pi_bytes_start_row + N_BYTES_U64 + N_BYTES_WORD * 4 + N_BYTES_WORD * 6;
         self.assign_rlc_start(region, &mut offset, &mut rpi_rlc_acc, &mut rpi_length_acc)?;
         // assign chain_id
         let cells = self.assign_field_in_pi(
@@ -876,6 +921,7 @@ impl<F: Field> PiCircuitConfig<F> {
             &public_data.chain_id.to_be_bytes(),
             &mut rpi_rlc_acc,
             &mut rpi_length_acc,
+            false,
             false,
             false,
             false,
@@ -918,19 +964,15 @@ impl<F: Field> PiCircuitConfig<F> {
                     false,
                     false,
                     false,
+                    false,
                     challenges,
                 )?;
                 Ok(cells[RPI_CELL_IDX].clone())
             })
             .collect::<Result<Vec<_>, Error>>()?;
-        let connections = Connections {
-            start_state_root: root_cells[0].clone(),
-            end_state_root: root_cells[1].clone(),
-            withdraw_root: root_cells[2].clone(),
-        };
 
         // assign data_hash
-        let cells = self.assign_field_in_pi(
+        let mut cells = self.assign_field_in_pi(
             region,
             &mut offset,
             &data_hash.to_fixed_bytes(),
@@ -939,14 +981,56 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             false,
             false,
+            false,
             challenges,
         )?;
         let data_hash_cell = cells[RPI_CELL_IDX].clone();
-        let pi_bytes_rlc = cells[RPI_RLC_ACC_CELL_IDX].clone();
-        let pi_bytes_length = cells[RPI_LENGTH_ACC_CELL_IDX].clone();
 
         // copy data_hash down here
         region.constrain_equal(data_hash_rlc_cell.cell(), data_hash_cell.cell())?;
+
+        //assign cp and result
+        let cp_and_result = public_data.decompose_cp_result();
+        let blob_cells = cp_and_result
+            .into_iter()
+            .map(|cpre_be_bytes| -> Result<AssignedCell<F, F>, Error> {
+                cells = self.assign_field_in_pi(
+                    region,
+                    &mut offset,
+                    cpre_be_bytes.as_slice(),
+                    &mut rpi_rlc_acc,
+                    &mut rpi_length_acc,
+                    false,
+                    false,
+                    false,
+                    true,
+                    challenges,
+                )?;
+
+                Ok(cells[RPI_CELL_IDX].clone())
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        let pi_bytes_rlc = cells[RPI_RLC_ACC_CELL_IDX].clone();
+        let pi_bytes_length = cells[RPI_LENGTH_ACC_CELL_IDX].clone();
+        
+        let connections = Connections {
+            start_state_root: root_cells[0].clone(),
+            end_state_root: root_cells[1].clone(),
+            withdraw_root: root_cells[2].clone(),
+            x_limb1: blob_cells[0].clone(),
+            x_limb2: blob_cells[1].clone(),
+            x_limb3: blob_cells[2].clone(),
+            y_limb1: blob_cells[3].clone(),
+            y_limb2: blob_cells[4].clone(),
+            y_limb3: blob_cells[5].clone(),
+        };
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb1.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb2.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb3.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb1.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb2.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb3.value());
 
         for i in pi_bytes_start_row..pi_bytes_end_row {
             self.q_not_end.enable(region, i)?;
@@ -957,7 +1041,8 @@ impl<F: Field> PiCircuitConfig<F> {
 
         // assign keccak row for computing pi_hash = keccak256(pi_bytes)
         let pi_hash_row = offset;
-        pi_bytes_rlc.copy_advice(
+        log::trace!("pi_hash_row:{:?}", pi_hash_row);
+        pi_bytes_rlc.clone().copy_advice(
             || "pi_bytes_rlc in the rpi col",
             region,
             self.raw_public_inputs,
@@ -965,7 +1050,7 @@ impl<F: Field> PiCircuitConfig<F> {
         )?;
         let pi_hash = public_data.get_pi();
         let pi_hash_rlc = rlc_be_bytes(&pi_hash.to_fixed_bytes(), challenges.evm_word());
-        pi_bytes_length.copy_advice(
+        pi_bytes_length.clone().copy_advice(
             || "pi_bytes_length in the rpi_length_acc col",
             region,
             self.rpi_length_acc,
@@ -977,6 +1062,7 @@ impl<F: Field> PiCircuitConfig<F> {
             pi_hash_row,
             || pi_hash_rlc,
         )?;
+        log::trace!("pi hash row: rpi{:?}  rpi_len{:?} hash_rpi_rlc{:?}",pi_bytes_rlc.clone().value(), pi_bytes_length.value(), pi_hash_rlc_cell.value());
         self.q_keccak.enable(region, pi_hash_row)?;
         offset += 1;
 
@@ -1001,6 +1087,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             false,
             true,
+            false,
             challenges,
         )?;
         let pi_hash_hi_byte_cells = cells[3..].to_vec();
@@ -1016,6 +1103,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             false,
             true,
+            false,
             challenges,
         )?;
         let pi_hash_lo_byte_cells = cells[3..].to_vec();
@@ -1046,6 +1134,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             true,
             true,
+            false,
             challenges,
         )?;
         let coinbase_cell = cells[RPI_CELL_IDX].clone();
@@ -1060,6 +1149,7 @@ impl<F: Field> PiCircuitConfig<F> {
             false,
             true,
             true,
+            false,
             challenges,
         )?;
         let difficulty_cell = cells[RPI_CELL_IDX].clone();
@@ -1089,6 +1179,7 @@ impl<F: Field> PiCircuitConfig<F> {
                 + 1 // for pi bytes start row
                 + N_BYTES_U64
                 + 4 * KECCAK_DIGEST_SIZE
+                + 6 * 32  //for blob x y 
                 + 1 // for pi hash row
                 + 1 // for pi hash bytes start row
                 + KECCAK_DIGEST_SIZE
@@ -1140,6 +1231,7 @@ impl<F: Field> PiCircuitConfig<F> {
         is_block_context: bool, // if this field related to block context
         is_rpi_padding: bool,   // if this field is not included in the data bytes
         keccak_hi_lo: bool,     // if this field is related to keccak decomposition
+        is_blob: bool,          // if this field is related to blob
         challenges: &Challenges<Value<F>>,
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
         self.assign_field_in_pi_ext(
@@ -1152,6 +1244,7 @@ impl<F: Field> PiCircuitConfig<F> {
             is_rpi_padding,
             keccak_hi_lo,
             false,
+            is_blob,
             challenges,
         )
     }
@@ -1168,6 +1261,7 @@ impl<F: Field> PiCircuitConfig<F> {
         is_rpi_padding: bool,   // if this field is not included in the data bytes
         keccak_hi_lo: bool,     // if this field is related to keccak decomposition
         is_constant: bool,
+        is_blob: bool,          // if this field is related to blob
         challenges: &Challenges<Value<F>>,
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
         let len = value_be_bytes.len();
@@ -1176,6 +1270,12 @@ impl<F: Field> PiCircuitConfig<F> {
             (F::one(), challenges.evm_word())
         } else {
             (F::zero(), Value::known(F::from(BYTE_POW_BASE)))
+        };
+
+        let (is_field_rlc, t) = if is_blob {
+            (F::zero(), Value::known(F::from(BYTE_POW_BASE)))
+        } else {
+            (is_field_rlc, t)
         };
         // keccak_hi_lo = true if we are re-using rpi layout for keccak bytes
         let r = if keccak_hi_lo {
@@ -1512,6 +1612,8 @@ impl<F: Field> PiCircuit<F> {
             prev_state_root: H256(block.mpt_updates.old_root().to_be_bytes()),
             next_state_root,
             withdraw_trie_root: H256(block.withdraw_root.to_be_bytes()),
+            challenge_point: block.challenge_point,
+            partial_result: block.partial_result,
         };
 
         Self {
@@ -1541,6 +1643,7 @@ impl<F: Field> PiCircuit<F> {
         layouter: &mut impl Layouter<F>,
         state_roots: Option<&StateCircuitExports<Assigned<F>>>,
         withdraw_roots: Option<&EvmCircuitExports<Assigned<F>>>,
+        blob_exports: Option<&BlobCircuitExports<Assigned<F>>>,
     ) -> Result<(), Error> {
         let local_conn = self
             .connections
@@ -1583,6 +1686,66 @@ impl<F: Field> PiCircuit<F> {
                 } else {
                     log::warn!("withdraw roots are not set, skip connection with evm circuit");
                 }
+                
+                if let Some(blob_exports) = blob_exports {
+                    log::debug!(
+                        "constrain_equal of cp: {:?} <-> {:?}",
+                        &local_conn.x_limb1,
+                        &blob_exports.x_limb1,
+                    );
+                    region.constrain_equal(
+                        local_conn.x_limb1.cell(),
+                        blob_exports.x_limb1.0,
+                    )?;
+                    log::debug!(
+                        "constrain_equal of cp: {:?} <-> {:?}",
+                        &local_conn.x_limb2,
+                        &blob_exports.x_limb2,
+                    );
+                    region.constrain_equal(
+                        local_conn.x_limb2.cell(),
+                        blob_exports.x_limb2.0,
+                    )?;
+                    log::debug!(
+                        "constrain_equal of cp: {:?} <-> {:?}",
+                        &local_conn.x_limb3,
+                        &blob_exports.x_limb3,
+                    );
+                    region.constrain_equal(
+                        local_conn.x_limb3.cell(),
+                        blob_exports.x_limb3.0,
+                    )?;
+                    log::debug!(
+                        "constrain_equal of partial result: {:?} <-> {:?}",
+                        &local_conn.y_limb1,
+                        &blob_exports.y_limb1,
+                    );
+                    region.constrain_equal(
+                        local_conn.y_limb1.cell(),
+                        blob_exports.y_limb1.0,
+                    )?;
+                    log::debug!(
+                        "constrain_equal of partial result: {:?} <-> {:?}",
+                        &local_conn.y_limb2,
+                        &blob_exports.y_limb2,
+                    );
+                    region.constrain_equal(
+                        local_conn.y_limb2.cell(),
+                        blob_exports.y_limb2.0,
+                    )?;
+                    log::debug!(
+                        "constrain_equal of partial result: {:?} <-> {:?}",
+                        &local_conn.y_limb3,
+                        &blob_exports.y_limb3,
+                    );
+                    region.constrain_equal(
+                        local_conn.y_limb3.cell(),
+                        blob_exports.y_limb3.0,
+                    )?;
+
+                } else {
+                    log::warn!("blob exports are not set, skip connection with blob circuit");
+                }
 
                 Ok(())
             },
@@ -1614,6 +1777,7 @@ impl<F: Field> SubCircuit<F> for PiCircuit<F> {
             + 1 // for pi bytes start row
             + N_BYTES_U64 // chain_id
             + 4 * KECCAK_DIGEST_SIZE // state_roots & data hash
+            + 6 * 32 // blob x & y
             + 1 // for pi hash row
             + 1 // for pi hash bytes start row
             + KECCAK_DIGEST_SIZE // pi hash bytes

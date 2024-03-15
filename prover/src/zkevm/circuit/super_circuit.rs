@@ -38,6 +38,6 @@ impl TargetCircuit for SuperCircuit {
     }
 
     fn public_input_len() -> usize {
-        2
+        1
     }
 }

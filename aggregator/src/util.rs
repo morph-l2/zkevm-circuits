@@ -18,7 +18,8 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     // Hash for each chunk is derived from hashing the chunk's
     // chain_id || prev_state || post_state || withdraw_root || data_hash
     // Each chunk hash therefore also requires 2 keccak rounds for 168 bytes.
-    let chunk_hash_rounds = 2 * max_snarks;
+    // add challenge_point || result  192(6*32)bytes Therefore 3 rounds are required
+    let chunk_hash_rounds = 3 * max_snarks;
     let data_hash_rounds = get_data_hash_keccak_updates(max_snarks);
 
     pi_rounds + chunk_hash_rounds + data_hash_rounds
@@ -190,11 +191,11 @@ pub(crate) fn parse_hash_preimage_cells(
     let mut chunk_pi_hash_preimages = vec![];
     for i in 0..MAX_AGG_SNARKS {
         chunk_pi_hash_preimages.push(
-            &hash_input_cells[INPUT_LEN_PER_ROUND * (2 * i + 3)..INPUT_LEN_PER_ROUND * (2 * i + 5)],
+            &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (i + 1)..INPUT_LEN_PER_ROUND * 3 * (i + 2)],
         );
     }
     let potential_batch_data_hash_preimage =
-        &hash_input_cells[INPUT_LEN_PER_ROUND + INPUT_LEN_PER_ROUND * 2 * (MAX_AGG_SNARKS + 1)..];
+        &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (MAX_AGG_SNARKS + 1)..];
 
     (
         batch_pi_hash_preimage,
@@ -231,9 +232,9 @@ pub(crate) fn parse_pi_hash_rlc_cells(
 ) -> Vec<&AssignedCell<Fr, Fr>> {
     data_rlc_cells
         .iter()
-        .skip(3) // the first 3 rlc cells are pad (1) + batch pi hash (2)
-        .take(MAX_AGG_SNARKS * 2) // each chunk hash takes 2 rounds
-        .chunks(2)
+        .skip(4) // the first 3 rlc cells are pad (1) + batch pi hash (2)
+        .take(MAX_AGG_SNARKS * 3) // each chunk hash takes 2 rounds
+        .chunks(3)
         .into_iter()
         .map(|t| t.last().unwrap())
         .collect()

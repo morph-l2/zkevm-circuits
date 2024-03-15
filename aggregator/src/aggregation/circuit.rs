@@ -65,7 +65,7 @@ impl AggregationCircuit {
             let chunk_hash_bytes = chunk.public_input_hash();
             let snark_hash_bytes = &snark.instances[0];
 
-            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN+BLOB_POINT_LEN);
+            assert_eq!(snark_hash_bytes.len(), ACC_LEN + DIGEST_LEN);
 
             for i in 0..DIGEST_LEN {
                 // for each snark,
@@ -89,9 +89,6 @@ impl AggregationCircuit {
 
         // extract batch's public input hash
         let public_input_hash = &batch_hash.instances_exclude_acc()[0];
-
-        // extract blob instance
-        // let (challenge_point_instance, result_isntance) = &batch_hash.instance_for_blob();
 
         // the public instance for this circuit consists of
         // - an accumulator (12 elements)
@@ -227,7 +224,7 @@ impl Circuit<Fr> for AggregationCircuit {
                 },
             )?;
 
-            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * (DIGEST_LEN+BLOB_POINT_LEN));
+            assert_eq!(snark_inputs.len(), MAX_AGG_SNARKS * DIGEST_LEN);
             (accumulator_instances, snark_inputs)
         };
         end_timer!(timer);
@@ -244,10 +241,6 @@ impl Circuit<Fr> for AggregationCircuit {
             Ok(challenge_point)
         })?;
         let challenge_cells = challenge_point.iter().map(|x| x.cell()).collect::<Vec<_>>();
-        // let cp_index_start = ACC_LEN + DIGEST_LEN ;
-        // for (i, v) in challenge_point.iter().enumerate() {
-        //     layouter.constrain_instance(v.cell(), config.instance, i+cp_index_start)?;
-        // }
 
         // let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
         //     let fp_chip = config.fp_chip();
@@ -263,15 +256,6 @@ impl Circuit<Fr> for AggregationCircuit {
         //     Ok((result))            
         //     },
         // )?;
-
-
-        
-        // True index of result in instance should be determined in the future.
-        // let result_index_start = cp_index_start + CHALLENGE_POINT_LEN;
-        // for (i, v) in result.iter().enumerate() {
-        //     layouter.constrain_instance(v.cell(), config.instance, i+result_index_start)?;
-        // }
-
 
 
         // ==============================================
@@ -367,14 +351,14 @@ impl Circuit<Fr> for AggregationCircuit {
                                 "{}-th snark: {:?} {:?}",
                                 i,
                                 chunk_pi_hash_digests[i][j * 8 + k].value(),
-                                snark_inputs[i * (DIGEST_LEN + 6) + (3 - j) * 8 + k].value()
+                                snark_inputs[i * DIGEST_LEN + (3 - j) * 8 + k].value()
                             );
 
                             region.constrain_equal(
                                 // in the keccak table, the input and output data have different
                                 // endianess
                                 chunk_pi_hash_digests[i][j * 8 + k].cell(),
-                                snark_inputs[i * (DIGEST_LEN + 6) + (3 - j) * 8 + k].cell(),
+                                snark_inputs[i * DIGEST_LEN + (3 - j) * 8 + k].cell(),
                             )?;
                         }
                     }

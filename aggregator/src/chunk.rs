@@ -96,11 +96,6 @@ impl ChunkHash {
             .map(|(_, b_ctx)| b_ctx.eth_block.state_root)
             .unwrap_or(H256(block.prev_state_root.to_be_bytes()));
 
-        //TODO:compute partial_result from witness block;
-        // let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
-
-        // let partial_result = polyeval()
-
         Self {
             chain_id: block.chain_id,
             prev_state_root: H256(block.prev_state_root.to_be_bytes()),
@@ -130,7 +125,6 @@ impl ChunkHash {
         r.fill_bytes(&mut buf);
         // let challenge_point = Fp::from_bytes_wide(&buf).to_bytes();
         let challenge_point = Fp::from(123).to_bytes();
-        println!("cp le bytes{:?}", challenge_point);
 
         let mut buf1 = [0u8; 64];
         r.fill_bytes(&mut buf1);
@@ -169,38 +163,40 @@ impl ChunkHash {
     }
 
     /// Public input hash for a given chunk is defined as
-    ///  keccak( chain id || prev state root || post state root || withdraw root || data hash )
+    ///  keccak( chain id || prev state root || post state root || withdraw root || data hash || x || y)
     pub fn public_input_hash(&self) -> H256 {
         let preimage = self.extract_hash_preimage();
         keccak256::<&[u8]>(preimage.as_ref()).into()
     }
 
     /// Extract the preimage for the hash
-    ///  chain id || prev state root || post state root || withdraw root || data hash
+    ///  chain id || prev state root || post state root || withdraw root || data hash || x || y
     pub fn extract_hash_preimage(&self) -> Vec<u8> {
+        let blob_preimage = self.decompose_cp_result();
         [
             self.chain_id.to_be_bytes().as_ref(),
             self.prev_state_root.as_bytes(),
             self.post_state_root.as_bytes(),
             self.withdraw_root.as_bytes(),
             self.data_hash.as_bytes(),
+            blob_preimage[0].as_slice(),
+            blob_preimage[1].as_slice(),
+            blob_preimage[2].as_slice(),
+            blob_preimage[3].as_slice(),
+            blob_preimage[4].as_slice(),
+            blob_preimage[5].as_slice(),
         ]
         .concat()
     }
 
-    /// decompose challenge_point
-    pub fn challenge_point(&self) -> Vec<Fr>{
+    fn decompose_cp_result(&self) -> Vec<[u8; 32]>{
         let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
-        // println!("cp le bytes{:?}", self.challenge_point);
-        // println!("cpfe{}", cp_fe);
-        decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88)
-
-    }
-
-    /// decompose partial_result
-    pub fn partial_result(&self) -> Vec<Fr>{
+        let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
+        let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
         let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
-        decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88)
+        let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
+        let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        preimage.append(&mut re_preimage);
+        preimage
     }
-
 }
