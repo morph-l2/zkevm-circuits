@@ -4076,6 +4076,7 @@ dependencies = [
  "anyhow",
  "base64 0.13.1",
  "blake2",
+ "bls12_381",
  "bus-mapping",
  "chrono",
  "dotenvy",

@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
-use eth_types::{l2_types::BlockTrace, Address, U256};
+use eth_types::{l2_types::BlockTrace, Address, U256, ToLittleEndian};
 use git_version::git_version;
 use halo2_proofs::{
     halo2curves::bn256::{Bn256, Fr}, plonk::Challenge, poly::kzg::commitment::ParamsKZG, SerdeFormat
@@ -27,6 +27,8 @@ use std::{
     sync::Once,
 };
 use zkevm_circuits::evm_circuit::witness::Block;
+use bls12_381::{Scalar as Fp};
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
 
 pub static LOGGER: Once = Once::new();
 
@@ -175,6 +177,17 @@ pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>,
         }
         Err(e) => Err(e),
     }
+}
+
+pub fn decompose_cp_result(block: &Block<Fr>) -> Vec<[u8; 32]>{
+    let cp_fe = Fp::from_bytes(&block.challenge_point.clone().to_le_bytes()).unwrap();
+    let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
+    let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+    let pr_fe = Fp::from_bytes(&block.partial_result.clone().to_le_bytes()).unwrap();
+    let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
+    let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+    preimage.append(&mut re_preimage);
+    preimage
 }
 
 // Return the output dir.

@@ -240,7 +240,12 @@ impl PublicData {
         );
 
         let pi_bytes = self.pi_bytes(data_hash);
+
+        log::trace!("pi bytes:{:?}", pi_bytes);
+        
         let pi_hash = keccak256(pi_bytes);
+
+        log::trace!("pi hash:{:?}", pi_hash);
 
         H256(pi_hash)
     }
@@ -1020,6 +1025,12 @@ impl<F: Field> PiCircuitConfig<F> {
             y_limb2: blob_cells[4].clone(),
             y_limb3: blob_cells[5].clone(),
         };
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb1.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb2.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.x_limb3.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb1.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb2.value());
+        log::trace!("[pi circuit rlc]connect blob:{:?}", connections.y_limb3.value());
 
         for i in pi_bytes_start_row..pi_bytes_end_row {
             self.q_not_end.enable(region, i)?;

@@ -1361,6 +1361,7 @@ impl KeccakTable {
                 challenge,
             )
         });
+        log::trace!("input_rlc:{:?}  output_rlc:{:?}", input_rlc, output_rlc);
         vec![[
             Value::known(F::one()),
             input_rlc,
