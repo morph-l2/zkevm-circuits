@@ -1612,8 +1612,8 @@ impl<F: Field> PiCircuit<F> {
             prev_state_root: H256(block.mpt_updates.old_root().to_be_bytes()),
             next_state_root,
             withdraw_trie_root: H256(block.withdraw_root.to_be_bytes()),
-            challenge_point: block.challenge_point,
-            partial_result: block.partial_result,
+            challenge_point: block.blob.z,
+            partial_result: block.blob.p_y,
         };
 
         Self {

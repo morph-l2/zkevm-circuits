@@ -180,10 +180,10 @@ pub fn chunk_trace_to_witness_block_with_index(mut chunk_trace: Vec<BlockTrace>,
 }
 
 pub fn decompose_cp_result(block: &Block<Fr>) -> Vec<[u8; 32]>{
-    let cp_fe = Fp::from_bytes(&block.challenge_point.clone().to_le_bytes()).unwrap();
+    let cp_fe = Fp::from_bytes(&block.blob.z.clone().to_le_bytes()).unwrap();
     let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
     let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
-    let pr_fe = Fp::from_bytes(&block.partial_result.clone().to_le_bytes()).unwrap();
+    let pr_fe = Fp::from_bytes(&block.blob.p_y.clone().to_le_bytes()).unwrap();
     let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
     let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
     preimage.append(&mut re_preimage);

@@ -207,7 +207,7 @@ impl<F: Field> BlobCircuit<F>{
             .collect::<Vec<_>>();
 
 
-        let real_blob = self.blob.
+        let real_blob = self.blob
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
