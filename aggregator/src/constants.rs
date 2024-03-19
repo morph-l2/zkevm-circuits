@@ -33,6 +33,9 @@ pub(crate) const PREV_STATE_ROOT_INDEX: usize = 8;
 pub(crate) const POST_STATE_ROOT_INDEX: usize = 40;
 pub(crate) const WITHDRAW_ROOT_INDEX: usize = 72;
 pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
+pub(crate) const CHALLENGE_POINT_INDEX: usize = 136;
+pub(crate) const RESULT_INDEX: usize = 232;
+
 
 // ================================
 // aggregator parameters

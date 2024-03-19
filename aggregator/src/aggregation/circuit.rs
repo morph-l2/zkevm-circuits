@@ -233,29 +233,33 @@ impl Circuit<Fr> for AggregationCircuit {
         // ==============================================
         // step 5: Blob partial result summation circuit
         // ==============================================
-        let challenge_point = layouter.assign_region(||"Assign Challenge Point", |mut region|->Result<(Vec<AssignedValue<Fr>>), Error>{
+        let blob_result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
             let fp_chip = config.fp_chip();
             let mut ctx = fp_chip.new_context(region);
-            let mut challenge_point = load_private(&fp_chip, &mut ctx, Value::known(Fp::from_bytes(&self.batch_hash.challenge_point.to_le_bytes()).unwrap()));
-            let challenge_point = vec![challenge_point.truncation.limbs[0], challenge_point.truncation.limbs[1], challenge_point.truncation.limbs[2]];
-            Ok(challenge_point)
-        })?;
-        let challenge_cells = challenge_point.iter().map(|x| x.cell()).collect::<Vec<_>>();
-
-        // let result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
-        //     let fp_chip = config.fp_chip();
-        //     let mut ctx = fp_chip.new_context(region);
-        //     let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
-        //     for chunk in self.batch_hash.chunks_with_padding.iter() {
-        //         let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
-        //         let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
-        //         final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
-        //     } 
+            let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
+            let mut blob_result = vec![];
+            for chunk in self.batch_hash.chunks_with_padding.iter().take(self.batch_hash.number_of_valid_chunks) {
+                let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
+                let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
+                final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
+                blob_result.push(partial_result.truncation.limbs[0]);
+                blob_result.push(partial_result.truncation.limbs[1]);
+                blob_result.push(partial_result.truncation.limbs[2]);
+            } 
             
-        //     let result = vec![final_result.truncation.limbs[0], final_result.truncation.limbs[1], final_result.truncation.limbs[2]];
-        //     Ok((result))            
-        //     },
-        // )?;
+            blob_result.push(final_result.truncation.limbs[0]);
+            blob_result.push(final_result.truncation.limbs[1]);
+            blob_result.push(final_result.truncation.limbs[2]);
+
+            Ok(blob_result)            
+            },
+        )?;
+        let blob_cells = blob_result.iter().map(|x| x.cell()).collect::<Vec<_>>();
+        assert_eq!(
+            blob_result.len(), 
+            3 * (self.batch_hash.number_of_valid_chunks + 1),
+            "error blob result len"
+        );
 
 
         // ==============================================
@@ -298,7 +302,7 @@ impl Circuit<Fr> for AggregationCircuit {
                 challenges,
                 &chunks_are_valid,
                 &preimages,
-                &challenge_cells,
+                &blob_result,
             )
             .map_err(|_e| Error::ConstraintSystemFailure)?;
             end_timer!(timer);

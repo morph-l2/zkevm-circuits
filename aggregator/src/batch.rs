@@ -127,7 +127,7 @@ impl BatchHash {
         // add challenge_point and result to batch_hash
         let challenge_point = chunks_with_padding[0].challenge_point;
         let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
-        for i in 1..MAX_AGG_SNARKS - 1 {
+        for i in 1..number_of_valid_chunks {
             result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
 

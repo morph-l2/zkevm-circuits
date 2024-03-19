@@ -1,6 +1,6 @@
 use eth_types::{
     sign_types::{sign, SignData},
-    Field,
+    Field, U256,
 };
 use halo2_base::utils::fe_to_biguint;
 use halo2_proofs::{
@@ -33,7 +33,12 @@ fn test_blob_consistency(){
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     println!("omega:{}", omega);
     let result = poly_eval(blob.clone(), challenge_point, omega);
+
     println!("real result:{}", result);
+
+    println!("U256:{:?}", U256::from_little_endian(&result.to_bytes()));
+
+
 
     let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, 0, blob.clone(), result);
 

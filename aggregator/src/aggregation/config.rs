@@ -34,6 +34,8 @@ pub struct AggregationConfig {
     pub keccak_circuit_config: KeccakCircuitConfig<Fr>,    
     /// RLC config
     pub rlc_config: RlcConfig,
+    /// RLC config 1
+    pub rlc_config1: RlcConfig,
     /// Instance for public input; stores
     /// - accumulator from aggregation (12 elements)
     /// - batch_public_input_hash (32 elements)
@@ -55,6 +57,7 @@ impl AggregationConfig {
 
         // RLC configuration
         let rlc_config = RlcConfig::configure(meta, challenges);
+        let rlc_config1 = RlcConfig::configure(meta, challenges);
 
         // hash configuration for aggregation circuit
         let keccak_circuit_config = {
@@ -123,6 +126,7 @@ impl AggregationConfig {
             blob_field_config,
             base_field_config,
             rlc_config,
+            rlc_config1,
             keccak_circuit_config,
             instance,
         }
