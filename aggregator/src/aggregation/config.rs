@@ -34,8 +34,6 @@ pub struct AggregationConfig {
     pub keccak_circuit_config: KeccakCircuitConfig<Fr>,    
     /// RLC config
     pub rlc_config: RlcConfig,
-    /// RLC config 1
-    pub rlc_config1: RlcConfig,
     /// Instance for public input; stores
     /// - accumulator from aggregation (12 elements)
     /// - batch_public_input_hash (32 elements)
