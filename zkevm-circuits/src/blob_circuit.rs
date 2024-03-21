@@ -1,22 +1,21 @@
-use ethers_core::types::TxpoolStatus;
 use halo2_base::{
     Context,
     utils::{
-        ScalarField, fe_to_biguint, modulus, decompose_biguint,}, 
+        ScalarField, fe_to_biguint, modulus,}, 
     gates::GateInstructions, AssignedValue,
 };
 
 use halo2_ecc::{fields::{fp::{FpConfig, FpStrategy}, FieldChip}, bigint::CRTInteger};
 use halo2_proofs::{
     circuit::{Layouter, Value, Cell},
-    plonk::{ConstraintSystem, Error, Expression, Column, Instance, Assigned},
+    plonk::{ConstraintSystem, Error, Expression, Assigned},
 };
 
-use bls12_381::{Scalar as Fp};
+use bls12_381::Scalar as Fp;
 use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, Transaction, CircuitBlob}, evm_circuit::util::rlc};
-use std::{io::Read, marker::PhantomData};
-use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256};
+use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, CircuitBlob},};
+use std::marker::PhantomData;
+use eth_types::{Field, U256};
 
 pub mod util;
 mod test;
@@ -137,8 +136,7 @@ impl<F: Field> BlobCircuit<F>{
     ) -> Result<Vec<AssignedValue<F>>, Error> {
         let one = ScalarFieldElement::constant(Fp::one());
         let blob_width = ScalarFieldElement::constant(u64::try_from(BLOB_WIDTH).unwrap().into());
-        let blob_width_th_root_of_unity =
-            Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+        let blob_width_th_root_of_unity = blob_width_th_root_of_unity();
         let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
             .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
             .collect();
@@ -244,10 +242,12 @@ impl<F: Field> BlobCircuit<F>{
         // let challenge_point_fp = cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &cp_lo, &cp_hi);
 
         // loading roots of unity to fp_chip as constants
-        
-        let blob_width_th_root_of_unity =
-        Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
-        // let blob_width_th_root_of_unity = get_omega(4, 2);
+    
+        let blob_width_th_root_of_unity = blob_width_th_root_of_unity();
+
+        // let blob_width_th_root_of_unity =
+        // Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+
         let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
             .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
             .collect();
@@ -383,18 +383,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
     /// Compute the public inputs for this circuit.
     fn instance(&self) -> Vec<Vec<F>> {
-
-        // let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
-
-        // let result = poly_eval_partial(self.partial_blob.clone(), self.challenge_point, omega, self.index);
-
-        // let mut public_inputs = decompose_biguint(&fe_to_biguint(&self.challenge_point), NUM_LIMBS, LIMB_BITS);
-
-        // public_inputs.extend(decompose_biguint::<F>(&fe_to_biguint(&result), NUM_LIMBS, LIMB_BITS));
-
-        // println!("compute blob public input {:?}", public_inputs);
-
-        // vec![public_inputs]
         vec![]
     }
 
@@ -429,10 +417,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
 
         self.exports.borrow_mut().replace(export);
 
-        // for (i, v) in result_limbs.iter().enumerate() {
-        //     layouter.constrain_instance(v.cell(), config.instance, i)?;
-        // }
-        
         Ok(())
     }
 }

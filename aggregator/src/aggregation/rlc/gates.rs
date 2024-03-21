@@ -32,6 +32,12 @@ impl RlcConfig {
             8,
             || Value::known(Fr::from(1 << 32)),
         )?;
+        region.assign_fixed(
+            || "const 256",
+            self.fixed,
+            9,
+            || Value::known(Fr::from(256)),
+        )?;
         Ok(())
     }
 
@@ -111,6 +117,15 @@ impl RlcConfig {
         Cell {
             region_index,
             row_offset: 8,
+            column: self.fixed.into(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn two_hundred_and_fifty_six_cell(&self, region_index: RegionIndex) -> Cell {
+        Cell {
+            region_index,
+            row_offset: 9,
             column: self.fixed.into(),
         }
     }

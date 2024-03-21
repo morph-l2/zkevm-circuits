@@ -24,15 +24,16 @@ pub(crate) const LOG_DEGREE: u32 = 19;
 // - prev_state_root    32 bytes
 // - post_state_root    32 bytes
 // - withdraw_root      32 bytes
-// - chunk_data_hash    32 bytes
-
-// - batch_data_hash    32 bytes
+// - chunk_data_hash or batch_data_hash    32 bytes
 // - challenge_point    32*3 bytes
 // - result             32*3 bytes
 pub(crate) const PREV_STATE_ROOT_INDEX: usize = 8;
 pub(crate) const POST_STATE_ROOT_INDEX: usize = 40;
 pub(crate) const WITHDRAW_ROOT_INDEX: usize = 72;
 pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
+pub(crate) const CHALLENGE_POINT_INDEX: usize = 136;
+pub(crate) const RESULT_INDEX: usize = 232;
+
 
 // ================================
 // aggregator parameters
@@ -41,10 +42,6 @@ pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
 /// An decomposed accumulator consists of 12 field elements
 pub(crate) const ACC_LEN: usize = 12;
 
-/// Blob information consists of 6 field elements
-pub(crate) const BLOB_POINT_LEN: usize = CHALLENGE_POINT_LEN + RESULT_LEN;
-pub(crate) const CHALLENGE_POINT_LEN: usize = 3;
-pub(crate) const RESULT_LEN: usize = 3;
 /// number of limbs when decomposing a field element in the ECC chip
 pub(crate) const LIMBS: usize = 3;
 /// number of bits in each limb in the ECC chip
