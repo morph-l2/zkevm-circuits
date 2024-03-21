@@ -55,7 +55,6 @@ impl AggregationConfig {
 
         // RLC configuration
         let rlc_config = RlcConfig::configure(meta, challenges);
-        let rlc_config1 = RlcConfig::configure(meta, challenges);
 
         // hash configuration for aggregation circuit
         let keccak_circuit_config = {
@@ -124,7 +123,6 @@ impl AggregationConfig {
             blob_field_config,
             base_field_config,
             rlc_config,
-            rlc_config1,
             keccak_circuit_config,
             instance,
         }
