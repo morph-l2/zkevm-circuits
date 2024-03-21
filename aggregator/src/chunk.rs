@@ -111,7 +111,6 @@ impl ChunkHash {
     /// Sample a chunk hash from random (for testing)
     #[cfg(test)]
     pub(crate) fn mock_random_chunk_hash_for_testing<R: rand::RngCore>(r: &mut R) -> Self {
-        use halo2_proofs::plonk::Challenge;
 
         let mut prev_state_root = [0u8; 32];
         r.fill_bytes(&mut prev_state_root);
@@ -128,7 +127,7 @@ impl ChunkHash {
 
         let mut buf1 = [0u8; 64];
         r.fill_bytes(&mut buf1);
-        let mut partial_result = Fp::from_bytes_wide(&buf1).to_bytes();
+        let partial_result = Fp::from_bytes_wide(&buf1).to_bytes();
 
         // r.fill_bytes(&mut partial_result);
         Self {

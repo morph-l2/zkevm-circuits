@@ -256,15 +256,7 @@ impl BatchHash {
             .map(|&x| F::from(x as u64))
             .collect()]
     }
-
-    pub(crate) fn instance_for_blob<F: Field>(&self) -> (Vec<F>,Vec<F>) {
-        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
-        let challenge_point = decompose_biguint::<F>(&fe_to_biguint(&cp_fe), 3, 88);
-        let pr_fe = Fp::from_bytes(&self.result.to_le_bytes()).unwrap();
-        let result = decompose_biguint::<F>(&fe_to_biguint(&pr_fe), 3, 88);
-        (challenge_point, result)
-    }
-
+    //decompose cp and result to Fr be bytes
     pub(crate) fn decompose_cp_result(challenge_point: U256, result: U256) -> (Vec<[u8; 32]>,Vec<[u8; 32]>) {
         let cp_fe = Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap();
         let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);

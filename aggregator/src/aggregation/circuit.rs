@@ -1,11 +1,11 @@
 use ark_std::{end_timer, start_timer};
-use eth_types::{Field, ToLittleEndian, U256};
+use eth_types::{Field, ToLittleEndian};
 use halo2_proofs::{
-     circuit::{Layouter, Region, SimpleFloorPlanner, Value}, halo2curves::bn256::{Bn256, Fr, G1Affine}, plonk::{Circuit, ConstraintSystem, Error, Selector}, poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG}
+     circuit::{Layouter, SimpleFloorPlanner, Value}, halo2curves::bn256::{Bn256, Fr, G1Affine}, plonk::{Circuit, ConstraintSystem, Error, Selector}, poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG}
 };
 use itertools::Itertools;
 use rand::Rng;
-use std::{env, fs::File, result};
+use std::{env, fs::File};
 use bls12_381::Scalar as Fp;
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier::loader::halo2::halo2_ecc::halo2_base;
@@ -24,7 +24,9 @@ use snark_verifier_sdk::{CircuitExt, Snark, SnarkWitness};
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS, BLOB_POINT_LEN}, core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, util::parse_hash_digest_cells, ConfigParams, BITS, CHALLENGE_POINT_LEN, LIMBS
+    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS}, 
+    core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, 
+    util::parse_hash_digest_cells, ConfigParams, BITS, LIMBS
 };
 
 use super::AggregationConfig;
@@ -254,13 +256,12 @@ impl Circuit<Fr> for AggregationCircuit {
             Ok(blob_result)            
             },
         )?;
-        let blob_cells = blob_result.iter().map(|x| x.cell()).collect::<Vec<_>>();
+
         assert_eq!(
             blob_result.len(), 
             3 * (self.batch_hash.number_of_valid_chunks + 1),
             "error blob result len"
         );
-
 
         // ==============================================
         // step 2: public input aggregation circuit
