@@ -38,7 +38,7 @@ pub const CONTRACTS: &[(&str, &str)] = &[
 /// Path to gen_blockchain_data output file
 pub const GENDATA_OUTPUT_PATH: &str = "gendata_output.json";
 
-const GETH0_URL_DEFAULT: &str = "https://rpc-testnet.morphl2.io";
+const GETH0_URL_DEFAULT: &str = "http://10.11.57.224:8545";
 
 lazy_static! {
     /// URL of the integration test geth0 instance, which contains blocks for which proofs will be
@@ -51,19 +51,19 @@ lazy_static! {
     /// ..
     pub static ref START_BLOCK: usize =  match env::var("START_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 201,
+        Err(VarError::NotPresent) => 929533,
         Err(e) => panic!("Error in START_BLOCK env var: {e:?}"),
     };
     /// ..
     pub static ref END_BLOCK: usize =  match env::var("END_BLOCK") {
         Ok(val) => str::parse::<usize>(&val).unwrap(),
-        Err(VarError::NotPresent) => 202,
+        Err(VarError::NotPresent) => 929533,
         Err(e) => panic!("Error in END_BLOCK env var: {e:?}"),
     };
     /// ..
     pub static ref TX_ID: String =  match env::var("TX_ID") {
         Ok(val) => val,
-        Err(VarError::NotPresent) => "".to_string(),
+        Err(VarError::NotPresent) => "0xb29217c870a74ec9b61b96402a06571b6e1d8d78936a4b10cff7fccabb594667".to_string(),
         Err(e) => panic!("Error in TX_ID env var: {e:?}"),
     };
     /// ..
