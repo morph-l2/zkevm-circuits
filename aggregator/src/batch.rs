@@ -7,7 +7,9 @@ use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToLittleEndian, H256, U256};
 use ethers_core::utils::keccak256;
 use halo2_proofs::halo2curves::bn256::Fr;
-use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{
+    decompose_biguint, fe_to_biguint,
+};
 
 use crate::constants::MAX_AGG_SNARKS;
 
@@ -30,9 +32,8 @@ pub struct BatchHash {
     pub(crate) data_hash: H256,
     pub(crate) public_input_hash: H256,
     pub(crate) number_of_valid_chunks: usize,
-    pub(crate) challenge_point:U256,
-    pub(crate) result:U256,
-
+    pub(crate) challenge_point: U256,
+    pub(crate) result: U256,
 }
 
 impl BatchHash {
@@ -119,19 +120,23 @@ impl BatchHash {
         //      chunk[0].prev_state_root ||
         //      chunk[k-1].post_state_root ||
         //      chunk[k-1].withdraw_root ||
-        //      batch_data_hash || 
-        //      challenge_point || 
+        //      batch_data_hash ||
+        //      challenge_point ||
         //      result)
 
-        
         // add challenge_point and result to batch_hash
         let challenge_point = chunks_with_padding[0].challenge_point;
-        let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
+        let mut result =
+            Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
         for i in 1..MAX_AGG_SNARKS - 1 {
-            result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
+            result = result
+                + Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
 
-        let (cp_preimage, re_preimage) = Self::decompose_cp_result(challenge_point, U256::from_little_endian(&result.to_bytes()));
+        let (cp_preimage, re_preimage) = Self::decompose_cp_result(
+            challenge_point,
+            U256::from_little_endian(&result.to_bytes()),
+        );
 
         let preimage = [
             chunks_with_padding[0].chain_id.to_be_bytes().as_ref(),
@@ -181,12 +186,19 @@ impl BatchHash {
         //      chunk[0].prev_state_root ||
         //      chunk[k-1].post_state_root ||
         //      chunk[k-1].withdraw_root ||
-        //      batch_data_hash || 
-        //      challenge_point || 
+        //      batch_data_hash ||
+        //      challenge_point ||
         //      result)
 
-        let (challenge_point_preimage, result_preimage) = Self::decompose_cp_result(self.challenge_point, self.result);
+        log::info!(
+            "extract_hash_preimages, data_hash: {:?}, challenge_point.to_le_bytes(): {:?}, result.to_le_bytes(): {:?}",
+            self.data_hash,
+            self.challenge_point.to_le_bytes(),
+            self.result.to_le_bytes()
+        );
 
+        let (challenge_point_preimage, result_preimage) =
+            Self::decompose_cp_result(self.challenge_point, self.result);
 
         let batch_public_input_hash_preimage = [
             self.chain_id.to_be_bytes().as_ref(),
@@ -215,7 +227,8 @@ impl BatchHash {
         //        chunk[i].prevStateRoot || chunk[i].postStateRoot || chunk[i].withdrawRoot ||
         //        chunk[i].datahash || x || y)
         for chunk in self.chunks_with_padding.iter() {
-            let (challenge_point_preimage, partial_result_preimage) = Self::decompose_cp_result(chunk.challenge_point, chunk.partial_result);
+            let (challenge_point_preimage, partial_result_preimage) =
+                Self::decompose_cp_result(chunk.challenge_point, chunk.partial_result);
             let chunk_public_input_hash_preimage = [
                 self.chain_id.to_be_bytes().as_ref(),
                 chunk.prev_state_root.as_bytes(),
@@ -243,6 +256,11 @@ impl BatchHash {
             .collect();
         res.push(batch_data_hash_preimage);
 
+        log::info!(
+            "extract_hash_preimages, batch_data_hash_preimage: {:?}",
+            res
+        );
+
         res
     }
 
@@ -257,7 +275,7 @@ impl BatchHash {
             .collect()]
     }
 
-    pub(crate) fn instance_for_blob<F: Field>(&self) -> (Vec<F>,Vec<F>) {
+    pub(crate) fn instance_for_blob<F: Field>(&self) -> (Vec<F>, Vec<F>) {
         let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
         let challenge_point = decompose_biguint::<F>(&fe_to_biguint(&cp_fe), 3, 88);
         let pr_fe = Fp::from_bytes(&self.result.to_le_bytes()).unwrap();
@@ -265,15 +283,31 @@ impl BatchHash {
         (challenge_point, result)
     }
 
-    pub(crate) fn decompose_cp_result(challenge_point: U256, result: U256) -> (Vec<[u8; 32]>,Vec<[u8; 32]>) {
+    pub(crate) fn decompose_cp_result(
+        challenge_point: U256,
+        result: U256,
+    ) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
         let cp_fe = Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap();
         let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
-        let cp_preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        let cp_preimage = cp
+            .iter()
+            .map(|x| {
+                let mut be_bytes = x.to_bytes();
+                be_bytes.reverse();
+                be_bytes
+            })
+            .collect::<Vec<_>>();
         let pr_fe = Fp::from_bytes(&result.to_le_bytes()).unwrap();
         let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
-        let re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        let re_preimage = re
+            .iter()
+            .map(|x| {
+                let mut be_bytes = x.to_bytes();
+                be_bytes.reverse();
+                be_bytes
+            })
+            .collect::<Vec<_>>();
 
         (cp_preimage, re_preimage)
     }
-
 }
