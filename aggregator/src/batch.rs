@@ -1,7 +1,7 @@
 //! This module implements related functions that aggregates public inputs of many chunks into a
 //! single one.
 
-use std::vec;
+use std::{str::FromStr, vec};
 
 use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToLittleEndian, H256, U256};
@@ -276,4 +276,68 @@ impl BatchHash {
         (cp_preimage, re_preimage)
     }
 
+}
+
+#[test]
+fn test_public_input_hash() {
+    let challenge_point: U256 =
+        U256::from_str("0x0005e9c1e287e7e3b506471e485bb40f2e1c0085b9cef822e476ed7112bbe639")
+            .unwrap();
+    let cp_fe = Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap();
+    let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
+    let cp_preimage = cp
+        .iter()
+        .map(|x| {
+            let mut be_bytes = x.to_bytes();
+            be_bytes.reverse();
+            be_bytes
+        })
+        .collect::<Vec<_>>();
+
+    let result: U256 =
+        U256::from_str("0x222ebc14f63c035a3a02154905cda95cc0909230bad9a7a6a71f788ac6243806")
+            .unwrap();
+    let pr_fe = Fp::from_bytes(&result.to_le_bytes()).unwrap();
+    let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
+    let re_preimage = re
+        .iter()
+        .map(|x| {
+            let mut be_bytes = x.to_bytes();
+            be_bytes.reverse();
+            be_bytes
+        })
+        .collect::<Vec<_>>();
+
+    let chain_id = u64::from_str("53077").unwrap();
+    let prev_state_root =
+        H256::from_str("0x000e99ef296bcca960ab82643bfb8798fe0e3fdd2cfdf63f36149ad21316ad21")
+            .unwrap();
+    let post_state_root =
+        H256::from_str("0x0c331309ce13ebc35b680a146d02b05ccdaec2e4faedddf86c512ec271a1bb5e")
+            .unwrap();
+
+    let withdraw_root =
+        H256::from_str("0x27ae5ba08d7291c96c8cbddcc148bf48a6d68c7974b94356f53754ef6171d757")
+            .unwrap();
+    let data_hash =
+        H256::from_str("0x85c4206f1433be4d12d2410ffecd6831e09439e52439e3b3f9ef7e0c26d160c7")
+            .unwrap();
+
+    let preimage = [
+        chain_id.to_be_bytes().as_ref(),
+        prev_state_root.as_bytes(),
+        post_state_root.as_bytes(),
+        withdraw_root.as_bytes(),
+        data_hash.as_bytes(),
+        cp_preimage[0].as_slice(),
+        cp_preimage[1].as_slice(),
+        cp_preimage[2].as_slice(),
+        re_preimage[0].as_slice(),
+        re_preimage[1].as_slice(),
+        re_preimage[2].as_slice(),
+    ]
+    .concat();
+
+    let public_input_hash = keccak256(preimage);
+    println!("public_input_hash: {:?}", public_input_hash);
 }
