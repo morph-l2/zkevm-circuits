@@ -37,10 +37,6 @@ fn test_blob_consistency(){
 
     println!("U256:{:?}", U256::from_little_endian(&result.to_bytes()));
 
-
-
-    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, 0, blob.clone(), result);
-
     let circuit = BlobCircuit::<Fr> {
         batch_commit: batch_commit,
         challenge_point: challenge_point,
@@ -63,6 +59,8 @@ fn test_blob_consistency(){
 
 #[test]
 fn test_partial_blob_consistency(){
+    let batch_commit = Fr::random(OsRng);
+
     let blob: Vec<Fp> = (0..51)
         .map(|_| Fp::random(OsRng))
         .collect();
@@ -81,10 +79,12 @@ fn test_partial_blob_consistency(){
     
     log::trace!("real result:{}", result);
 
-    let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, index, blob.clone(), result);
-
     let circuit = BlobCircuit::<Fr> {
-        blob:circuit_blob,
+        batch_commit: batch_commit,
+        challenge_point: challenge_point,
+        index: index,
+        partial_blob: blob.clone(),
+        partial_result: result,
         exports: std::cell::RefCell::new(None),
         _marker: PhantomData::default(),
     };    
