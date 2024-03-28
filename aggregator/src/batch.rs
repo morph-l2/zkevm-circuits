@@ -126,9 +126,9 @@ impl BatchHash {
         
         // add challenge_point and result to batch_hash
         let challenge_point = chunks_with_padding[0].challenge_point;
-        let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
-        for i in 1..MAX_AGG_SNARKS - 1 {
-            result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
+        let mut result   = Fp::zero();
+        for i in 0..number_of_valid_chunks - 1 {
+            result = result + Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
 
         let (cp_preimage, re_preimage) = Self::decompose_cp_result(challenge_point, U256::from_little_endian(&result.to_bytes()));
