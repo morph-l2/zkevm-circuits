@@ -159,8 +159,7 @@ impl<F: Field> BlobCircuit<F>{
     ) -> Result<Vec<AssignedValue<F>>, Error> {
         let one = ScalarFieldElement::constant(Fp::one());
         let blob_width = ScalarFieldElement::constant(u64::try_from(BLOB_WIDTH).unwrap().into());
-        let blob_width_th_root_of_unity =
-            Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+        let blob_width_th_root_of_unity = blob_width_th_root_of_unity();
         let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
             .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
             .collect();
@@ -267,10 +266,11 @@ impl<F: Field> BlobCircuit<F>{
         // let challenge_point_fp = cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &cp_lo, &cp_hi);
 
         // loading roots of unity to fp_chip as constants
-        
-        let blob_width_th_root_of_unity =
-        Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
-        // let blob_width_th_root_of_unity = get_omega(4, 2);
+        let blob_width_th_root_of_unity = blob_width_th_root_of_unity();
+
+        // let blob_width_th_root_of_unity =
+        // Fp::from(123).pow(&[(FP_S - BLOB_WIDTH_BITS) as u64, 0, 0, 0]);
+
         let roots_of_unity: Vec<_> = (0..BLOB_WIDTH)
             .map(|i| blob_width_th_root_of_unity.pow(&[i as u64, 0, 0, 0]))
             .collect();
