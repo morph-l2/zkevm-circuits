@@ -130,7 +130,16 @@ impl BatchHash {
         for i in 0..number_of_valid_chunks - 1 {
             result = result + Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
+        log::debug!(
+            "y_from_poly_eval_partial_sum: {:?}",
+            U256::from_little_endian(&result.to_bytes())
+        );
+        log::debug!(
+            "last_withdraw_root: {:?}",
+            chunks_with_padding[MAX_AGG_SNARKS - 1].withdraw_root
+        );
 
+        
         let (cp_preimage, re_preimage) = Self::decompose_cp_result(challenge_point, U256::from_little_endian(&result.to_bytes()));
 
         let preimage = [
