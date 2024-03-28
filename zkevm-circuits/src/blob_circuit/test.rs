@@ -96,17 +96,18 @@ fn test_partial_y() {
 
     //extend chunk
     let last_partial = partial_ys.last().unwrap().clone();
-    for _ in 0..(15 - 1) {
+    for _ in 0..15 {
         partial_ys.push(last_partial);
     }
-    let mut y_ex = Fp::from_bytes(&partial_ys[0].to_le_bytes()).unwrap();
-    for i in 1..15 - 1 {
+    let mut y_ex = Fp::zero();
+    for i in 0..15 {
         y_ex = y_ex + Fp::from_bytes(&partial_ys[i].to_le_bytes()).unwrap();
     }
     println!(
         "y_from_poly_eval_partial_sum_extend:{:?}",
         U256::from_little_endian(&y_ex.to_bytes())
     );
+
 }
 
 #[test]
