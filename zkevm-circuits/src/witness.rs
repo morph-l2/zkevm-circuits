@@ -12,7 +12,7 @@ mod bytecode;
 pub use bytecode::Bytecode;
 
 mod blob;
-pub use blob::{BlockBlob, CircuitBlob};
+pub use blob::{BlobValue, BlockBlob, CircuitBlob};
 
 mod call;
 pub use call::Call;
