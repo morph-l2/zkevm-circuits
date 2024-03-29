@@ -1,11 +1,16 @@
 use halo2_base::{
     Context,
-    utils::{
-        ScalarField, fe_to_biguint, modulus,}, 
+    utils::{ScalarField, fe_to_biguint, modulus}, 
     gates::GateInstructions, AssignedValue,
 };
 
-use halo2_ecc::{fields::{fp::{FpConfig, FpStrategy}, FieldChip}, bigint::CRTInteger};
+use halo2_ecc::{
+    bigint::CRTInteger,
+    fields::{
+        fp::{FpConfig, FpStrategy},
+        FieldChip,
+    },
+};
 use halo2_proofs::{
     circuit::{Layouter, Value, Cell},
     plonk::{ConstraintSystem, Error, Expression, Assigned},
@@ -17,10 +22,10 @@ use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, C
 use std::marker::PhantomData;
 use eth_types::{Field, U256};
 
-pub mod util;
-mod test;
 mod dev;
 mod scalar_field_element;
+mod test;
+pub mod util;
 use scalar_field_element::ScalarFieldElement;
 
 use util::*;
@@ -78,8 +83,6 @@ pub struct BlobCircuit<F: Field> {
     _marker: PhantomData<F>,
 }
 
-
-
 impl<F: Field> BlobCircuit<F> {
     /// Return a new BlobCircuit
     pub fn new(blob: CircuitBlob<F>) -> Self {
@@ -91,14 +94,11 @@ impl<F: Field> BlobCircuit<F> {
     }
 }
 
-
-impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
+impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F> {
     type ConfigArgs = BlobCircuitConfigArgs<F>;
     fn new(
         meta: &mut ConstraintSystem<F>,
-        Self::ConfigArgs {
-            challenges: _,
-        }: Self::ConfigArgs,
+        Self::ConfigArgs { challenges: _ }: Self::ConfigArgs,
     ) -> Self {
         let num_limbs = 3;
         let limb_bits = 88;
@@ -118,7 +118,7 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             0,
             19, // k
         );
-        
+
         Self {
             fp_config,
             num_limbs,
@@ -126,9 +126,9 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F>{
             _marker: PhantomData,
         }
     }
-} 
+}
 
-impl<F: Field> BlobCircuit<F>{
+impl<F: Field> BlobCircuit<F> {
     pub fn assign_new(
         &self,
         ctx: &mut Context<F>,
@@ -161,9 +161,9 @@ impl<F: Field> BlobCircuit<F>{
                                             );
                                             
         let z = ScalarFieldElement::private(self.blob.z);
- 
         let p = ((0..12).fold(z.clone(), |square, _| square.clone() * square) - one)
-            * rou.into_iter()
+            * rou
+                .into_iter()
                 .zip_eq(blob)
                 .map(|(root, f)| f * (root.clone() / (z.clone() - root.clone())).carry())
                 .reduce(|a, b| (a + b).carry()) // TODO: can 4096 additions happen without overflow, yes but you need to add this in
@@ -174,23 +174,37 @@ impl<F: Field> BlobCircuit<F>{
                 .carry()
             / blob_width;
 
-
         let result = p.resolve(ctx, &fp_chip);
         let cp = z.resolve(ctx, &fp_chip);
-        log::trace!("limb 1 \n reconstructed {:?}", result.truncation.limbs[0].value());
-        log::trace!("limb 2 \n reconstructed {:?}", result.truncation.limbs[1].value());
-        log::trace!("limb 3 \n reconstructed {:?}", result.truncation.limbs[2].value());
+        log::trace!(
+            "limb 1 \n reconstructed {:?}",
+            result.truncation.limbs[0].value()
+        );
+        log::trace!(
+            "limb 2 \n reconstructed {:?}",
+            result.truncation.limbs[1].value()
+        );
+        log::trace!(
+            "limb 3 \n reconstructed {:?}",
+            result.truncation.limbs[2].value()
+        );
 
-        let result = vec![cp.truncation.limbs[0], cp.truncation.limbs[1], cp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
-        
+        let result = vec![
+            cp.truncation.limbs[0],
+            cp.truncation.limbs[1],
+            cp.truncation.limbs[2],
+            result.truncation.limbs[0],
+            result.truncation.limbs[1],
+            result.truncation.limbs[2],
+        ];
+
         Ok(result)
     }
     pub(crate) fn assign(
         &self,
         ctx: &mut Context<F>,
         fp_chip: &FpConfig<F, Fp>,
-    ) ->  Result<BlobCircuitExports<Assigned<F>>, Error>{
-
+    ) -> Result<BlobCircuitExports<Assigned<F>>, Error> {
         let gate = &fp_chip.range.gate;
 
         let one_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
@@ -227,8 +241,8 @@ impl<F: Field> BlobCircuit<F>{
         // Evaluate a polynomial (in evaluation form) at an arbitrary point ``z``.
         // - When ``z`` is in the domain, the evaluation can be found by indexing
         // the polynomial at the position that ``z`` is in the domain.
-        // - When ``z`` is not in the domain, the barycentric formula is used:
-        //    f(z) = ((z**WIDTH - 1) / WIDTH) *  sum_(i=0)^WIDTH  (f(DOMAIN[i]) * DOMAIN[i]) / (z - DOMAIN[i])
+        // - When ``z`` is not in the domain, the barycentric formula is used: f(z) = ((z**WIDTH -
+        //   1) / WIDTH) *  sum_(i=0)^WIDTH  (f(DOMAIN[i]) * DOMAIN[i]) / (z - DOMAIN[i])
         //
         // In our case:
         // - ``z`` is the challenge point in Fp
@@ -236,13 +250,12 @@ impl<F: Field> BlobCircuit<F>{
         // - ``DOMAIN`` is the bit_reversal_permutation roots of unity
         // - ``f(DOMAIN[i])`` is the blob[i]
 
-        
         // let (cp_lo, cp_hi) = decompose_to_lo_hi(ctx, &fp_chip.range, challenge_point);
-            
-        // let challenge_point_fp = cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &cp_lo, &cp_hi);
+
+        // let challenge_point_fp = cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &cp_lo,
+        // &cp_hi);
 
         // loading roots of unity to fp_chip as constants
-    
         let blob_width_th_root_of_unity = blob_width_th_root_of_unity();
 
         // let blob_width_th_root_of_unity =
@@ -254,7 +267,7 @@ impl<F: Field> BlobCircuit<F>{
         let roots_of_unity = roots_of_unity
             .iter()
             .map(|x| fp_chip.load_constant(ctx, fe_to_biguint(x)))
-            .collect::<Vec<_>>();          
+            .collect::<Vec<_>>();
 
         // let roots_of_unity_brp = roots_of_unity;
         // apply bit_reversal_permutation to roots_of_unity
@@ -266,11 +279,10 @@ impl<F: Field> BlobCircuit<F>{
         let mut result = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
         let mut cp_is_not_root_of_unity = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::one()));
         let mut barycentric_evaluation = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::zero()));
-        
 
         for i in 0..partial_blob_len as usize {
             let numinator_i = fp_chip.mul(ctx, &roots_of_unity_brp[i].clone(), &blob[i].clone());
-    
+
             let denominator_i_no_carry = fp_chip.sub_no_carry(
                 ctx,
                 &challenge_point_fp.clone(),
@@ -281,9 +293,15 @@ impl<F: Field> BlobCircuit<F>{
             // safe_denominator_i = denominator_i       (denominator_i != 0)
             // safe_denominator_i = 1                   (denominator_i == 0)
             let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
-            let is_zero_denominator_i =
-                cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
-            // let is_zero_denominator_i = fp_chip.load_private(ctx, Value::known(fe_to_bigint(&Fp::zero())));
+            let is_zero_denominator_i = cross_field_load_private(
+                ctx,
+                &fp_chip,
+                &fp_chip.range,
+                &is_zero_denominator_i,
+                &zero,
+            );
+            // let is_zero_denominator_i = fp_chip.load_private(ctx,
+            // Value::known(fe_to_bigint(&Fp::zero())));
             let safe_denominator_i =
                 fp_chip.add_no_carry(ctx, &denominator_i, &is_zero_denominator_i.clone());
             let safe_denominator_i = fp_chip.carry_mod(ctx, &safe_denominator_i);
@@ -293,7 +311,8 @@ impl<F: Field> BlobCircuit<F>{
             // cp_is_not_root_of_unity = 0          (denominator_i == 0)
             let non_zero_denominator_i =
                 fp_chip.sub_no_carry(ctx, &one_fp.clone(), &is_zero_denominator_i.clone());
-            cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
+            cp_is_not_root_of_unity =
+                fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
 
             // update `result`
             // result = blob[i]     (challenge_point = roots_of_unity_brp[i])
@@ -311,7 +330,7 @@ impl<F: Field> BlobCircuit<F>{
         let width_fp = fp_chip.load_constant(ctx, fe_to_biguint(&Fp::from(BLOB_WIDTH as u64)));
         let factor = fp_chip.divide(ctx, &cp_to_the_width_minus_one, &width_fp);
         barycentric_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &factor);
-        
+
         // === STEP 3: select between the two case ===
         // if challenge_point is a root of unity(index..index + partial_blob_len), then result = blob[i]
         // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
@@ -330,44 +349,80 @@ impl<F: Field> BlobCircuit<F>{
         //     // safe_denominator_i = 1                   (denominator_i == 0)
         //     let is_zero_denominator_i = fp_is_zero(ctx, &gate, &denominator_i);
         //     let is_zero_denominator_i =
-        //         cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i, &zero);
-        //     // update `cp_is_not_root_of_unity`
+        //         cross_field_load_private(ctx, &fp_chip, &fp_chip.range, &is_zero_denominator_i,
+        // &zero);     // update `cp_is_not_root_of_unity`
         //     // cp_is_not_root_of_unity = 1          (initialize)
         //     // cp_is_not_root_of_unity = 0          (denominator_i == 0)
         //     let non_zero_denominator_i =
         //         fp_chip.sub_no_carry(ctx, &one_fp.clone(), &is_zero_denominator_i.clone());
-        //     cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity, &non_zero_denominator_i);
-        // }
-        
+        //     cp_is_not_root_of_unity = fp_chip.mul(ctx, &cp_is_not_root_of_unity,
+        // &non_zero_denominator_i); }
+
         let select_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &cp_is_not_root_of_unity);
         let tmp_result = fp_chip.add_no_carry(ctx, &result, &select_evaluation);
         result = fp_chip.carry_mod(ctx, &tmp_result);
 
-        log::trace!("limb 1 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[0].value());
-        log::trace!("limb 2 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[1].value());
-        log::trace!("limb 3 barycentric_evaluation {:?}", barycentric_evaluation.truncation.limbs[2].value());
+        log::trace!(
+            "limb 1 barycentric_evaluation {:?}",
+            barycentric_evaluation.truncation.limbs[0].value()
+        );
+        log::trace!(
+            "limb 2 barycentric_evaluation {:?}",
+            barycentric_evaluation.truncation.limbs[1].value()
+        );
+        log::trace!(
+            "limb 3 barycentric_evaluation {:?}",
+            barycentric_evaluation.truncation.limbs[2].value()
+        );
 
-        log::trace!("limb 1 reconstructed {:?}", result.truncation.limbs[0].value());
-        log::trace!("limb 2 reconstructed {:?}", result.truncation.limbs[1].value());
-        log::trace!("limb 3 reconstructed {:?}", result.truncation.limbs[2].value());
+        log::trace!(
+            "limb 1 reconstructed {:?}",
+            result.truncation.limbs[0].value()
+        );
+        log::trace!(
+            "limb 2 reconstructed {:?}",
+            result.truncation.limbs[1].value()
+        );
+        log::trace!(
+            "limb 3 reconstructed {:?}",
+            result.truncation.limbs[2].value()
+        );
 
-        //let result = vec![challenge_point_fp.truncation.limbs[0], challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2], result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
+        //let result = vec![challenge_point_fp.truncation.limbs[0],
+        // challenge_point_fp.truncation.limbs[1], challenge_point_fp.truncation.limbs[2],
+        // result.truncation.limbs[0], result.truncation.limbs[1], result.truncation.limbs[2]];
 
         Ok(BlobCircuitExports {
-            x_limb1: (challenge_point_fp.truncation.limbs[0].cell, challenge_point_fp.truncation.limbs[0].value.into()),
-            x_limb2: (challenge_point_fp.truncation.limbs[1].cell, challenge_point_fp.truncation.limbs[1].value.into()),
-            x_limb3: (challenge_point_fp.truncation.limbs[2].cell, challenge_point_fp.truncation.limbs[2].value.into()),
-            y_limb1: (result.truncation.limbs[0].cell, result.truncation.limbs[0].value.into()),
-            y_limb2: (result.truncation.limbs[1].cell, result.truncation.limbs[1].value.into()),
-            y_limb3: (result.truncation.limbs[2].cell, result.truncation.limbs[2].value.into()),
+            x_limb1: (
+                challenge_point_fp.truncation.limbs[0].cell,
+                challenge_point_fp.truncation.limbs[0].value.into(),
+            ),
+            x_limb2: (
+                challenge_point_fp.truncation.limbs[1].cell,
+                challenge_point_fp.truncation.limbs[1].value.into(),
+            ),
+            x_limb3: (
+                challenge_point_fp.truncation.limbs[2].cell,
+                challenge_point_fp.truncation.limbs[2].value.into(),
+            ),
+            y_limb1: (
+                result.truncation.limbs[0].cell,
+                result.truncation.limbs[0].value.into(),
+            ),
+            y_limb2: (
+                result.truncation.limbs[1].cell,
+                result.truncation.limbs[1].value.into(),
+            ),
+            y_limb3: (
+                result.truncation.limbs[2].cell,
+                result.truncation.limbs[2].value.into(),
+            ),
         })
     }
 }
 
-
-impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
+impl<F: Field> SubCircuit<F> for BlobCircuit<F> {
     type Config = BlobCircuitConfig<F>;
-
 
     fn new_from_block(block: &Block<F>) -> Self {
         Self{
@@ -378,7 +433,7 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
     }
 
     fn min_num_rows_block(block: &Block<F>) -> (usize, usize) {
-        (1<<19,1<<19)
+        (1 << 19, 1 << 19)
     }
 
     /// Compute the public inputs for this circuit.
@@ -392,19 +447,19 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         _challenges: &Challenges<Value<F>>,
         layouter: &mut impl Layouter<F>,
     ) -> Result<(), Error> {
-
-        config.fp_config
+        config
+            .fp_config
             .range()
             .load_lookup_table(layouter)
             .expect("load range lookup table");
 
         let export = layouter.assign_region(
-            || "assign blob circuit", 
+            || "assign blob circuit",
             |mut region| {
                 let fp_chip = &config.fp_config;
 
                 let mut ctx = fp_chip.new_context(region);
-                
+
                 let result = self.assign(&mut ctx, &fp_chip);
 
                 fp_chip.finalize(&mut ctx);
@@ -416,7 +471,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F>{
         )?;
 
         self.exports.borrow_mut().replace(export);
-
         Ok(())
     }
 }
