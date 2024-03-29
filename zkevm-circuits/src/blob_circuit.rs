@@ -471,3 +471,6 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F> {
         )?;
 
         self.exports.borrow_mut().replace(export);
+        Ok(())
+    }
+}

@@ -14,9 +14,7 @@ use halo2_proofs::{
 };
 use rand::{rngs::OsRng, Rng, RngCore};
 use std::marker::PhantomData;
-use bls12_381::{Scalar as Fp};
-use crate::{blob_circuit::BlobCircuit, util::SubCircuit, witness::CircuitBlob};
-use rand::rngs::OsRng;
+use crate::{witness::CircuitBlob};
 
 use crate::blob_circuit::util::*;
 
