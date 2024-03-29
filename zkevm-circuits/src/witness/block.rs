@@ -550,7 +550,7 @@ pub fn block_convert<F: Field>(
     }
 
     let partial_result =
-        U256::from(poly_eval_partial(result, Fp::from_u128(1), omega, 0).to_bytes());
+        U256::from_little_endian(&poly_eval_partial(result, Fp::one(), omega, 0).to_bytes());
 
     Ok(Block {
         _marker: Default::default(),
