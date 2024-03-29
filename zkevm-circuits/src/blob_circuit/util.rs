@@ -391,7 +391,6 @@ pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a
     fq_chip.range_check(ctx, &a_loaded, Fp::NUM_BITS as usize);
     a_loaded
 }
-
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md#constants
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md#compute_roots_of_unity
 pub fn blob_width_th_root_of_unity() -> Fp{

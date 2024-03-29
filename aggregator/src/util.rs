@@ -1,6 +1,6 @@
 use crate::constants::{DIGEST_LEN, INPUT_LEN_PER_ROUND, MAX_AGG_SNARKS};
 use eth_types::Field;
-use halo2_proofs::{circuit::AssignedCell, halo2curves::bn256::Fr, plonk::Error};
+use halo2_proofs::{circuit::{AssignedCell, Value}, halo2curves::bn256::Fr, plonk::Error};
 use itertools::Itertools;
 use zkevm_circuits::keccak_circuit::keccak_packed_multi::{
     get_num_rows_per_round, get_num_rows_per_update,
@@ -128,6 +128,19 @@ pub(crate) fn assert_equal<F: Field>(
         a != b
     })
 }
+pub(crate) fn assert_equal_value<F: Field>(
+    a: Value<&F>,
+    b: Value<&F>,
+    description: &str,
+) -> Result<(), Error> {
+    a.zip(b).error_if_known_and(|(&a, &b)| {
+        if a != b {
+            log::error!("{description}");
+        }
+        a != b
+    })
+}
+
 
 #[inline]
 // if cond = 1, assert two cells have same value;

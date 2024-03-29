@@ -10,7 +10,7 @@ use halo2_proofs::{
 use itertools::Itertools;
 use rand::Rng;
 use snark_verifier::{
-    loader::{halo2::halo2_ecc::halo2_base, native::NativeLoader},
+    loader::{halo2::halo2_ecc::halo2_base::{self, AssignedValue}, native::NativeLoader},
     pcs::{
         kzg::{Bdfg21, Kzg, KzgAccumulator, KzgAs},
         AccumulationSchemeProver,
@@ -33,10 +33,10 @@ use zkevm_circuits::{
 };
 
 use crate::{
-    constants::{CHAIN_ID_LEN, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS},
+    constants::{CHAIN_ID_LEN, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS, CHALLENGE_POINT_INDEX, RESULT_INDEX},
     util::{
         assert_conditional_equal, assert_equal, assert_exist, get_indices, get_max_keccak_updates,
-        parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells,
+        parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells, assert_equal_value,
     },
     AggregationConfig, RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, LIMBS, POST_STATE_ROOT_INDEX,
     PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
@@ -184,7 +184,7 @@ pub(crate) fn assign_batch_hashes(
     challenges: Challenges<Value<Fr>>,
     chunks_are_valid: &[bool],
     preimages: &[Vec<u8>],
-    challenge_cells: &[Cell],
+    assigned_result: &[AssignedValue<Fr>],
 ) -> Result<Vec<AssignedCell<Fr, Fr>>, Error> {
     let extracted_hash_cells = extract_hash_cells(
         &config.keccak_circuit_config,
@@ -192,12 +192,13 @@ pub(crate) fn assign_batch_hashes(
         challenges,
         preimages,
     )?;
+
     // 2. batch_pi_hash used same roots as chunk_pi_hash
     // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
     // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
     // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
     // 5. batch and all its chunks use a same chain id
-    copy_constraints(layouter, &extracted_hash_cells.hash_input_cells, challenge_cells)?;
+    copy_constraints(layouter, &extracted_hash_cells.hash_input_cells)?;
 
     // 1. batch_data_hash digest is reused for public input hash
     // 3. batch_data_hash and chunk[i].pi_hash use a same chunk[i].data_hash when chunk[i] is not
@@ -216,6 +217,7 @@ pub(crate) fn assign_batch_hashes(
         challenges,
         chunks_are_valid,
         &extracted_hash_cells,
+        assigned_result,
     )?;
 
     Ok(extracted_hash_cells.hash_output_cells)
@@ -355,7 +357,6 @@ pub(crate) fn extract_hash_cells(
 fn copy_constraints(
     layouter: &mut impl Layouter<Fr>,
     hash_input_cells: &[AssignedCell<Fr, Fr>],
-    challenge_cells: &[Cell],
 ) -> Result<(), Error> {
     let mut is_first_time = true;
 
@@ -457,8 +458,6 @@ fn copy_constraints(
                         chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + WITHDRAW_ROOT_INDEX].cell(),
                     )?;
                 }
-                // TODO:2.4 challenge point and result
-                // region.constrain_equal(challenge_cells[0], right);
 
                 // 5 assert hashes use a same chain id
                 for (i, chunk_pi_hash_preimage) in chunk_pi_hash_preimages.iter().enumerate() {
@@ -500,12 +499,15 @@ fn copy_constraints(
 // - batch's data_hash length is 32 * number_of_valid_snarks
 // 8. batch data hash is correct w.r.t. its RLCs
 // 9. is_final_cells are set correctly
+// 10. batch_pi_hash challenge point == chunk_pi_hash challenge point
+//     batch_pi_hash result == sum(valid chunk_pi_hash partial result)
 pub(crate) fn conditional_constraints(
     rlc_config: &RlcConfig,
     layouter: &mut impl Layouter<Fr>,
     challenges: Challenges<Value<Fr>>,
     chunks_are_valid: &[bool],
     extracted_hash_cells: &ExtractedHashCells,
+    assigned_result: &[AssignedValue<Fr>],
 ) -> Result<(), Error> {
     let mut first_pass = halo2_base::SKIP_FIRST_PASS;
     let ExtractedHashCells {
@@ -527,6 +529,7 @@ pub(crate) fn conditional_constraints(
 
                 rlc_config.init(&mut region)?;
                 let mut offset = 0;
+
                 // ====================================================
                 // build the flags to indicate the chunks are empty or not
                 // ====================================================
@@ -642,6 +645,64 @@ pub(crate) fn conditional_constraints(
                     _chunk_pi_hash_digests,
                     potential_batch_data_hash_digest,
                 ) = parse_hash_digest_cells(hash_output_cells);
+
+                // 10. batch_pi_hash challenge point == chunk_pi_hash challenge point
+                //     batch_pi_hash result == sum(valid chunk_pi_hash partial result)
+                for j in 0..MAX_AGG_SNARKS{
+                    for i in 0..(3*DIGEST_LEN){
+                        assert_equal(
+                            &batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX],
+                            &chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX],
+                            format!(
+                                "chunk and batch's challenge_point do not match: {:?} {:?}",
+                                &batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX].value(),
+                                &chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX].value(),
+                            )
+                            .as_str(),
+                        )?;
+                        region.constrain_equal(
+                            batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX].cell(),
+                            chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX].cell(),
+                        )?;
+                    }
+                }
+                let partial_result_len = (assigned_result.len() / 3) - 1;
+
+                let two_hundred_and_fifty_six = {
+                    let two_hundred_and_fifty_six = rlc_config.load_private(&mut region, &Fr::from(256), &mut offset)?;
+                    let two_hundred_and_fifty_six_cell = rlc_config.two_hundred_and_fifty_six_cell(two_hundred_and_fifty_six.cell().region_index);
+                    region.constrain_equal(two_hundred_and_fifty_six_cell, two_hundred_and_fifty_six.cell())?;
+                    two_hundred_and_fifty_six
+                };
+                let mut result_preimage_rlc = vec![];
+                for i in 0..partial_result_len{
+                    result_preimage_rlc.push(rlc_config.rlc(&mut region, &chunk_pi_hash_preimages[i][RESULT_INDEX..RESULT_INDEX+32], &two_hundred_and_fifty_six, &mut offset)?);
+                    result_preimage_rlc.push(rlc_config.rlc(&mut region, &chunk_pi_hash_preimages[i][RESULT_INDEX+32..RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
+                    result_preimage_rlc.push(rlc_config.rlc(&mut region, &chunk_pi_hash_preimages[i][RESULT_INDEX+64..RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
+                }
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX..RESULT_INDEX+32], &two_hundred_and_fifty_six, &mut offset)?);
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX+32..RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX+64..RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
+                
+                for i in 0..assigned_result.len(){
+                    let lhs = &assigned_result[i];
+                    let rhs = &result_preimage_rlc[i];
+                    
+                    log::trace!("{i}th assigned result:{:?}; result_preimage_rlc{:?}", lhs.clone().value(), rhs.clone().value());
+                    // sanity check
+                    assert_equal_value(
+                        lhs.value(),
+                        rhs.value(),
+                        format!(
+                            " assigned result and result_preimage_rlc do not match: {:?} {:?}",
+                            &lhs.value(),
+                            &rhs.value(),
+                        )
+                        .as_str(),
+                    )?;
+                    region.constrain_equal(lhs.cell(), rhs.cell())?;
+                }
+
                 // ====================================================
                 // start the actual statements
                 // ====================================================

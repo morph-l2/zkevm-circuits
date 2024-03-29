@@ -126,9 +126,9 @@ impl BatchHash {
         
         // add challenge_point and result to batch_hash
         let challenge_point = chunks_with_padding[0].challenge_point;
-        let mut result   = Fp::zero();
-        for i in 0..number_of_valid_chunks {
-            result = result + Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
+        let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
+        for i in 1..number_of_valid_chunks {
+            result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
         log::debug!(
             "y_from_poly_eval_partial_sum: {:?}",
@@ -265,15 +265,7 @@ impl BatchHash {
             .map(|&x| F::from(x as u64))
             .collect()]
     }
-
-    pub(crate) fn instance_for_blob<F: Field>(&self) -> (Vec<F>,Vec<F>) {
-        let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
-        let challenge_point = decompose_biguint::<F>(&fe_to_biguint(&cp_fe), 3, 88);
-        let pr_fe = Fp::from_bytes(&self.result.to_le_bytes()).unwrap();
-        let result = decompose_biguint::<F>(&fe_to_biguint(&pr_fe), 3, 88);
-        (challenge_point, result)
-    }
-
+    //decompose cp and result to Fr be bytes
     pub(crate) fn decompose_cp_result(challenge_point: U256, result: U256) -> (Vec<[u8; 32]>,Vec<[u8; 32]>) {
         let cp_fe = Fp::from_bytes(&challenge_point.to_le_bytes()).unwrap();
         let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
