@@ -1,7 +1,8 @@
 use halo2_base::{
     Context,
-    utils::{ScalarField, fe_to_biguint, modulus}, 
-    gates::GateInstructions, AssignedValue,
+    gates::GateInstructions,
+    utils::{decompose_biguint, fe_to_biguint, modulus, ScalarField},
+    AssignedValue,
 };
 
 use halo2_ecc::{
@@ -16,17 +17,22 @@ use halo2_proofs::{
     plonk::{ConstraintSystem, Error, Expression, Assigned},
 };
 
+use crate::{
+    util::{Challenges, SubCircuit, SubCircuitConfig},
+    witness::{Block, CircuitBlob},
+};
 use bls12_381::Scalar as Fp;
 use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, CircuitBlob},};
-use std::marker::PhantomData;
-use eth_types::{Field, U256};
-
+use eth_types::{Field, ToBigEndian, ToLittleEndian, ToScalar, H256, U256};
+use rand::rngs::OsRng;
+use std::{io::Read, marker::PhantomData};
 mod dev;
 mod scalar_field_element;
 mod test;
 pub mod util;
 use scalar_field_element::ScalarFieldElement;
+pub mod bytes_to_blob;
+
 
 use util::*;
 
@@ -34,6 +40,9 @@ use util::*;
 pub const BLOB_WIDTH: usize = 4096;
 pub const BLOB_WIDTH_BITS: u32 = 12;
 
+
+pub const K: usize = 14;
+pub const LOOKUP_BITS: usize = 10;
 #[derive(Clone, Debug)]
 pub struct BlobCircuitConfigArgs<F: Field> {
     /// zkEVM challenge API.
@@ -92,6 +101,21 @@ impl<F: Field> BlobCircuit<F> {
             _marker: PhantomData::default(),
         }
     }
+
+    pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
+        match block_to_blob(block) {
+            Ok(blob) => {
+                let mut result: Vec<Fp> = Vec::new();
+                for chunk in blob.chunks(32) {
+                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();
+                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
+                }
+                log::trace!("partial blob: {:?}", result);
+                result
+            }
+            Err(_) => Vec::new(),
+        }
+    }
 }
 
 impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F> {
@@ -119,6 +143,8 @@ impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F> {
             19, // k
         );
 
+        let instance = meta.instance_column();
+        meta.enable_equality(instance);
         Self {
             fp_config,
             num_limbs,
