@@ -101,21 +101,6 @@ impl<F: Field> BlobCircuit<F> {
             _marker: PhantomData::default(),
         }
     }
-
-    pub fn partial_blob(block: &Block<F>) -> Vec<Fp> {
-        match block_to_blob(block) {
-            Ok(blob) => {
-                let mut result: Vec<Fp> = Vec::new();
-                for chunk in blob.chunks(32) {
-                    let reverse: Vec<u8> = chunk.iter().rev().cloned().collect();
-                    result.push(Fp::from_bytes(reverse.as_slice().try_into().unwrap()).unwrap());
-                }
-                log::trace!("partial blob: {:?}", result);
-                result
-            }
-            Err(_) => Vec::new(),
-        }
-    }
 }
 
 impl<F: Field> SubCircuitConfig<F> for BlobCircuitConfig<F> {
