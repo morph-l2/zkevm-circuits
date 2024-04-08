@@ -25,14 +25,20 @@ pub(crate) const LOG_DEGREE: u32 = 19;
 // - post_state_root    32 bytes
 // - withdraw_root      32 bytes
 // - chunk_data_hash or batch_data_hash    32 bytes
+// - batch_commit(only in batch hash) 48 bytes
 // - challenge_point    32*3 bytes
 // - result             32*3 bytes
 pub(crate) const PREV_STATE_ROOT_INDEX: usize = 8;
 pub(crate) const POST_STATE_ROOT_INDEX: usize = 40;
 pub(crate) const WITHDRAW_ROOT_INDEX: usize = 72;
 pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
+
 pub(crate) const CHALLENGE_POINT_INDEX: usize = 136;
 pub(crate) const RESULT_INDEX: usize = 232;
+
+pub(crate) const BATCH_COMMIT_INDEX: usize = 136;
+pub(crate) const BATCH_CHALLENGE_POINT_INDEX: usize = 184;
+pub(crate) const BATCH_RESULT_INDEX: usize = 280;
 
 
 // ================================

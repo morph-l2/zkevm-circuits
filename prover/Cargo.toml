@@ -36,6 +36,13 @@ serde_derive = "1.0"
 serde_json = { version = "1.0.66", features = ["unbounded_depth"] }
 serde_stacker = "0.1"
 sha2 ="0.10.2"
+[dependencies.primitive-types]
+version = "0.12"
+features = [
+    "byteorder",
+    "rustc-hex",
+]
+default-features = false
 
 [features]
 default = []

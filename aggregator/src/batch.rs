@@ -6,8 +6,9 @@ use std::vec;
 use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToLittleEndian, H256, U256};
 use ethers_core::utils::keccak256;
-use halo2_proofs::halo2curves::bn256::Fr;
+use halo2_proofs::{halo2curves::bn256::Fr, plonk::Challenge};
 use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
+pub use primitive_types::H384;
 
 use crate::constants::MAX_AGG_SNARKS;
 
@@ -32,13 +33,15 @@ pub struct BatchHash {
     pub(crate) number_of_valid_chunks: usize,
     pub(crate) challenge_point:U256,
     pub(crate) result:U256,
+    //48bytes kzg commitment
+    pub(crate) batch_commit: H384,
 
 }
 
 impl BatchHash {
     /// Build Batch hash from an ordered list of #MAX_AGG_SNARKS of chunks.
     #[allow(dead_code)]
-    pub fn construct(chunks_with_padding: &[ChunkHash]) -> Self {
+    pub fn construct(chunks_with_padding: &[ChunkHash], batch_commit: H384) -> Self {
         assert_eq!(
             chunks_with_padding.len(),
             MAX_AGG_SNARKS,
@@ -120,14 +123,23 @@ impl BatchHash {
         //      chunk[k-1].post_state_root ||
         //      chunk[k-1].withdraw_root ||
         //      batch_data_hash || 
+        //      bacth_commit ||
         //      challenge_point || 
         //      result)
 
         
-        // add challenge_point and result to batch_hash
-        let challenge_point = chunks_with_padding[0].challenge_point;
-        let mut result   = Fp::from_bytes(&chunks_with_padding[0].partial_result.to_le_bytes()).unwrap();
-        for i in 1..number_of_valid_chunks {
+        // compute batch challenge_point and result
+        let cp_preimage = [
+            batch_commit.0.as_slice(),
+            data_hash.as_slice(),
+        ].concat();
+        let mut challenge_point = keccak256(cp_preimage);
+        println!("batch cp:{:?}", challenge_point);
+        challenge_point[31] = 0;
+        println!("batch cp change 0:{:?}", challenge_point);
+
+        let mut result = Fp::zero();
+        for i in 0..number_of_valid_chunks {
             result = result+Fp::from_bytes(&chunks_with_padding[i].partial_result.to_le_bytes()).unwrap();
         }
         log::debug!(
@@ -139,8 +151,7 @@ impl BatchHash {
             chunks_with_padding[MAX_AGG_SNARKS - 1].withdraw_root
         );
 
-        
-        let (cp_preimage, re_preimage) = Self::decompose_cp_result(challenge_point, U256::from_little_endian(&result.to_bytes()));
+        let (cp_preimage, re_preimage) = Self::decompose_cp_result(U256::from_little_endian(&challenge_point), U256::from_little_endian(&result.to_bytes()));
 
         let preimage = [
             chunks_with_padding[0].chain_id.to_be_bytes().as_ref(),
@@ -152,6 +163,7 @@ impl BatchHash {
                 .withdraw_root
                 .as_bytes(),
             data_hash.as_slice(),
+            batch_commit.as_bytes(),
             cp_preimage[0].as_slice(),
             cp_preimage[1].as_slice(),
             cp_preimage[2].as_slice(),
@@ -169,8 +181,9 @@ impl BatchHash {
             data_hash: data_hash.into(),
             public_input_hash: public_input_hash.into(),
             number_of_valid_chunks,
-            challenge_point,
+            challenge_point: U256::from_little_endian(&challenge_point),
             result: U256::from_little_endian(&result.to_bytes()),
+            batch_commit: batch_commit,
         }
     }
 
@@ -180,6 +193,7 @@ impl BatchHash {
     /// orders:
     /// - batch_public_input_hash
     /// - chunk\[i\].piHash for i in \[0, MAX_AGG_SNARKS)
+    /// - challenge_point_hash
     /// - batch_data_hash_preimage
     pub(crate) fn extract_hash_preimages(&self) -> Vec<Vec<u8>> {
         let mut res = vec![];
@@ -207,6 +221,7 @@ impl BatchHash {
                 .withdraw_root
                 .as_bytes(),
             self.data_hash.as_bytes(),
+            self.batch_commit.as_bytes(),
             challenge_point_preimage[0].as_slice(),
             challenge_point_preimage[1].as_slice(),
             challenge_point_preimage[2].as_slice(),
@@ -241,6 +256,17 @@ impl BatchHash {
             .concat();
             res.push(chunk_public_input_hash_preimage)
         }
+
+        // challenge_point_hash = 
+        //  keccak(
+        //      batch_commit ||
+        //      batch_data_hash)
+        // 48 + 32 bytes
+        let challenge_point_hash_preimage = [
+            self.batch_commit.0.as_slice(),
+            self.data_hash.as_bytes(),
+        ].concat();
+        res.push(challenge_point_hash_preimage);
 
         // batchDataHash = keccak(chunk[0].dataHash || ... || chunk[k-1].dataHash)
         let batch_data_hash_preimage = self

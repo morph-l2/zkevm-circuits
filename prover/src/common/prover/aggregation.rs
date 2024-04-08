@@ -6,6 +6,8 @@ use crate::{
 };
 use aggregator::{AggregationCircuit, BatchHash, ChunkHash};
 use anyhow::{anyhow, Result};
+use halo2_proofs::halo2curves::bn256::Fr;
+use primitive_types::H384;
 use rand::Rng;
 use snark_verifier_sdk::Snark;
 use std::env;
@@ -20,8 +22,9 @@ impl Prover {
         previous_snarks: &[Snark],
     ) -> Result<Snark> {
         env::set_var("AGGREGATION_CONFIG", layer_config_path(id));
-
-        let batch_hash = BatchHash::construct(chunk_hashes);
+        //TODO: pass batch commit
+        let batch_commit = H384::from_slice(Fr::zero().to_bytes().as_slice());
+        let batch_hash = BatchHash::construct(chunk_hashes, batch_commit);
 
         let circuit =
             AggregationCircuit::new(self.params(degree), previous_snarks, &mut rng, batch_hash)

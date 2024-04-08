@@ -33,7 +33,7 @@ use zkevm_circuits::{
 };
 
 use crate::{
-    constants::{CHAIN_ID_LEN, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS, CHALLENGE_POINT_INDEX, RESULT_INDEX},
+    constants::{CHAIN_ID_LEN, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS, CHALLENGE_POINT_INDEX, RESULT_INDEX, BATCH_CHALLENGE_POINT_INDEX, BATCH_RESULT_INDEX, BATCH_COMMIT_INDEX},
     util::{
         assert_conditional_equal, assert_equal, assert_exist, get_indices, get_max_keccak_updates,
         parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells, assert_equal_value,
@@ -178,6 +178,7 @@ pub(crate) struct ExtractedHashCells {
 // - batch's data_hash length is 32 * number_of_valid_snarks
 // 8. batch data hash is correct w.r.t. its RLCs
 // 9. is_final_cells are set correctly
+// new. challenge_point and batch_pi_hash use same batch_commit and data_hash.
 pub(crate) fn assign_batch_hashes(
     config: &AggregationConfig,
     layouter: &mut impl Layouter<Fr>,
@@ -242,8 +243,11 @@ pub(crate) fn extract_hash_cells(
     //      chunk[k-1].post_state_root ||
     //      chunk[k-1].withdraw_root ||
     //      batch_data_hash ||
+    //      batch_commit ||
     //      challenge_point ||
     //      result)
+    // challenge_point_hash preimage = 
+    //      (batch_commit || batch_data_hash)
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
@@ -324,7 +328,7 @@ pub(crate) fn extract_hash_cells(
                     hash_input_cells.len(),
                     max_keccak_updates * INPUT_LEN_PER_ROUND
                 );
-                assert_eq!(hash_output_cells.len(), (MAX_AGG_SNARKS + 5) * DIGEST_LEN);
+                assert_eq!(hash_output_cells.len(), (MAX_AGG_SNARKS + 6) * DIGEST_LEN);
 
                 keccak_config
                     .keccak_table
@@ -377,6 +381,7 @@ fn copy_constraints(
                 let (
                     batch_pi_hash_preimage,
                     chunk_pi_hash_preimages,
+                    challenge_point_hash_preimage,
                     _potential_batch_data_hash_preimage,
                 ) = parse_hash_preimage_cells(hash_input_cells);
 
@@ -480,6 +485,34 @@ fn copy_constraints(
                         region.constrain_equal(lhs.cell(), rhs.cell())?;
                     }
                 }
+                // assert batch_data_hash preimage equal challenge point hash preimage
+                for i in 0..48{
+                    assert_equal(
+                        &batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i],
+                        &challenge_point_hash_preimage[i],
+                        format!(
+                            "batch commit and challenge_point commit id do not match: {:?} {:?}",
+                            &batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i].value(),
+                            &challenge_point_hash_preimage[i].value(),
+                        )
+                        .as_str(),
+                    )?;
+                    region.constrain_equal(batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i].cell(), challenge_point_hash_preimage[i].cell())?;
+                }
+                // for i in 0..32{
+                //     assert_equal(
+                //         &batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i],
+                //         &challenge_point_hash_preimage[48 + i],
+                //         format!(
+                //             "batch data hash and challenge_point data hash do not match: {:?} {:?}",
+                //             &batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i].value(),
+                //             &challenge_point_hash_preimage[48 + i].value(),
+                //         )
+                //         .as_str(),
+                //     )?;
+                //     region.constrain_equal(batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i].cell(), challenge_point_hash_preimage[48 + i].cell());
+                // }
+                
                 Ok(())
             },
         )
@@ -636,6 +669,7 @@ pub(crate) fn conditional_constraints(
                 let (
                     batch_pi_hash_preimage,
                     chunk_pi_hash_preimages,
+                    challenge_point_hash_preimage,
                     potential_batch_data_hash_preimage,
                 ) = parse_hash_preimage_cells(hash_input_cells);
 
@@ -643,6 +677,7 @@ pub(crate) fn conditional_constraints(
                 let (
                     _batch_pi_hash_digest,
                     _chunk_pi_hash_digests,
+                    challenge_point_hash_digest,
                     potential_batch_data_hash_digest,
                 ) = parse_hash_digest_cells(hash_output_cells);
 
@@ -651,17 +686,17 @@ pub(crate) fn conditional_constraints(
                 for j in 0..MAX_AGG_SNARKS{
                     for i in 0..(3*DIGEST_LEN){
                         assert_equal(
-                            &batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX],
+                            &batch_pi_hash_preimage[i + BATCH_CHALLENGE_POINT_INDEX],
                             &chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX],
                             format!(
                                 "chunk and batch's challenge_point do not match: {:?} {:?}",
-                                &batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX].value(),
+                                &batch_pi_hash_preimage[i + BATCH_CHALLENGE_POINT_INDEX].value(),
                                 &chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX].value(),
                             )
                             .as_str(),
                         )?;
                         region.constrain_equal(
-                            batch_pi_hash_preimage[i + CHALLENGE_POINT_INDEX].cell(),
+                            batch_pi_hash_preimage[i + BATCH_CHALLENGE_POINT_INDEX].cell(),
                             chunk_pi_hash_preimages[j][i + CHALLENGE_POINT_INDEX].cell(),
                         )?;
                     }
@@ -680,9 +715,9 @@ pub(crate) fn conditional_constraints(
                     result_preimage_rlc.push(rlc_config.rlc(&mut region, &chunk_pi_hash_preimages[i][RESULT_INDEX+32..RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
                     result_preimage_rlc.push(rlc_config.rlc(&mut region, &chunk_pi_hash_preimages[i][RESULT_INDEX+64..RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
                 }
-                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX..RESULT_INDEX+32], &two_hundred_and_fifty_six, &mut offset)?);
-                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX+32..RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
-                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[RESULT_INDEX+64..RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX..BATCH_RESULT_INDEX+32], &two_hundred_and_fifty_six, &mut offset)?);
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX+32..BATCH_RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
+                result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX+64..BATCH_RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
                 
                 for i in 0..assigned_result.len(){
                     let lhs = &assigned_result[i];
@@ -703,11 +738,81 @@ pub(crate) fn conditional_constraints(
                     region.constrain_equal(lhs.cell(), rhs.cell())?;
                 }
 
+                //11.challenge point digest top_byte equals 0 and other bytes equal batch_pi_hash_preimage challenge_point
+                let zero = {
+                    let zero = rlc_config.load_private(&mut region, &Fr::from(0), &mut offset)?;
+                    let zero_cell = rlc_config.zero_cell(zero.cell().region_index);
+                    region.constrain_equal(zero_cell, zero.cell())?;
+                    zero
+                };
+
+                for i in (0..21).chain(32..52).chain(64..86){
+                    assert_equal(
+                        &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + i],
+                        &zero,
+                        format!(
+                            " i:{:?} batch_pi_hash_preimage and zero do not match: {:?} {:?}",
+                            i,
+                            &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + i].value(),
+                            &zero.value(),
+                        )
+                        .as_str(),
+                    )?;
+                }
+                for i in 0..4 {
+                    for j in 0..8{
+                        if(i == 3) & (j == 7) {
+
+                        } else if (i * 8 + j) < 11 {
+                            // 31 .. 21
+                            assert_equal(
+                                &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 31 - (i * 8 + j)],
+                                &challenge_point_hash_digest[(3 - i) * 8 + j],
+                                format!(
+                                    " i:{:?} j:{:?} batch_pi_hash_preimage and challenge point digest do not match in limb1: {:?} {:?}",
+                                    i,
+                                    j,
+                                    &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 31 - (i * 8 + j)].value(),
+                                    &challenge_point_hash_digest[(3 - i) * 8 + j].value(),
+                                )
+                                .as_str(),
+                            )?;
+                            region.constrain_equal(batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 31 - (i * 8 + j)].cell(), challenge_point_hash_digest[(3 - i) * 8 + j].cell())?;
+                        } else if 10 < (i * 8 + j) && (i * 8 + j) < 22 {
+                            // 63 .. 53
+                            assert_equal(
+                                &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 63 - (i * 8 + j - 11)],
+                                &challenge_point_hash_digest[(3 - i) * 8 + j],
+                                format!(
+                                    " batch_pi_hash_preimage and challenge point digest do not match in limb2: {:?} {:?}",
+                                    &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 63 - (i * 8 + j - 11)].value(),
+                                    &challenge_point_hash_digest[(3 - i) * 8 + j].value(),
+                                )
+                                .as_str(),
+                            )?;
+                            region.constrain_equal(batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 63 - (i * 8 + j - 11)].cell(), challenge_point_hash_digest[(3 - i) * 8 + j].cell())?;
+                        } else if 21 < (i * 8 + j) && (i * 8 + j) < 31{
+                            //95 .. 87
+                            assert_equal(
+                                &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 95 - (i * 8 + j - 22)],
+                                &challenge_point_hash_digest[(3 - i) * 8 + j],
+                                format!(
+                                    " batch_pi_hash_preimage and challenge point digest do not match in limb3: {:?} {:?}",
+                                    &batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 95 - (i * 8 + j - 22)].value(),
+                                    &challenge_point_hash_digest[(3 - i) * 8 + j].value(),
+                                )
+                                .as_str(),
+                            )?;
+                            region.constrain_equal(batch_pi_hash_preimage[BATCH_CHALLENGE_POINT_INDEX + 95 - (i * 8 + j - 22)].cell(), challenge_point_hash_digest[(3 - i) * 8 + j].cell())?;
+                        }
+                }
+            }
+
                 // ====================================================
                 // start the actual statements
                 // ====================================================
                 //
-                // 1 batch_data_hash digest is reused for public input hash
+                // 1 batch_data_hash digest is reused for public input hash and challenge point hash
                 //
                 // the following part of the code is hard coded for the case where
                 //   MAX_AGG_SNARKS <= 10
@@ -735,6 +840,15 @@ pub(crate) fn conditional_constraints(
                         // sanity check
                         assert_exist(
                             &batch_pi_hash_preimage[i * 8 + j + CHUNK_DATA_HASH_INDEX],
+                            &[
+                                potential_batch_data_hash_digest[(3 - i) * 8 + j].clone(),
+                                potential_batch_data_hash_digest[(3 - i) * 8 + j + 32].clone(),
+                                potential_batch_data_hash_digest[(3 - i) * 8 + j + 64].clone(),
+                                potential_batch_data_hash_digest[(3 - i) * 8 + j + 96].clone(),
+                            ],
+                        )?;
+                        assert_exist(
+                            &challenge_point_hash_preimage[i * 8 + j + 48],
                             &[
                                 potential_batch_data_hash_digest[(3 - i) * 8 + j].clone(),
                                 potential_batch_data_hash_digest[(3 - i) * 8 + j + 32].clone(),
@@ -781,6 +895,10 @@ pub(crate) fn conditional_constraints(
                             batch_pi_hash_preimage[i * 8 + j + CHUNK_DATA_HASH_INDEX].cell(),
                             rhs.cell(),
                         )?;
+                        region.constrain_equal(
+                            challenge_point_hash_preimage[i * 8 + j + 48].cell(),
+                            rhs.cell(),
+                        )?;                        
                     }
                 }
 
@@ -875,14 +993,31 @@ pub(crate) fn conditional_constraints(
                 }
 
                 // 7. the hash input length are correct
-                // - first MAX_AGG_SNARKS + 1 all have 136 + 192 bytes input
+                // - first batch pi hash have 376 bytes
+                // - MAX_AGG_SNARKS hashes all have 328 bytes input
                 // - batch's data_hash length is 32 * number_of_valid_snarks
 
-                // first MAX_AGG_SNARKS + 1 hashes all have 136 + 192 bytes input
+                //first hash
                 hash_input_len_cells
                     .iter()
                     .skip(1)
-                    .take((MAX_AGG_SNARKS + 1) * 3)
+                    .take(3)
+                    .chunks(3)
+                    .into_iter()
+                    .try_for_each(|chunk| {
+                        let cur_hash_len = chunk.last().unwrap(); // safe unwrap
+                        region.constrain_equal(
+                            cur_hash_len.cell(),
+                            rlc_config
+                                .three_hundred_and_seventy_six_cell(cur_hash_len.cell().region_index),
+                        )
+                    })?;
+                        
+                // MAX_AGG_SNARKS hashes
+                hash_input_len_cells
+                    .iter()
+                    .skip(4)
+                    .take((MAX_AGG_SNARKS) * 3)
                     .chunks(3)
                     .into_iter()
                     .try_for_each(|chunk| {
@@ -905,54 +1040,54 @@ pub(crate) fn conditional_constraints(
                 assert_exist(
                     &data_hash_inputs_len,
                     &[
-                        hash_input_len_cells[MAX_AGG_SNARKS * 3 + 4].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 3 + 5].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 3 + 6].clone(),
                         hash_input_len_cells[MAX_AGG_SNARKS * 3 + 7].clone(),
+                        hash_input_len_cells[MAX_AGG_SNARKS * 3 + 8].clone(),
                     ],
                 )?;
 
                 log::trace!("data_hash_inputs: {:?}", data_hash_inputs_len.value());
                 log::trace!(
                     "candidate 1: {:?}",
-                    hash_input_len_cells[MAX_AGG_SNARKS * 3 + 4].value()
-                );
-                log::trace!(
-                    "candidate 2: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 3 + 5].value()
                 );
                 log::trace!(
-                    "candidate 3: {:?}",
+                    "candidate 2: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 3 + 6].value()
                 );
                 log::trace!(
-                    "candidate 4: {:?}",
+                    "candidate 3: {:?}",
                     hash_input_len_cells[MAX_AGG_SNARKS * 3 + 7].value()
+                );
+                log::trace!(
+                    "candidate 4: {:?}",
+                    hash_input_len_cells[MAX_AGG_SNARKS * 3 + 8].value()
                 );
 
                 let mut data_hash_inputs_len_rec = rlc_config.mul(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 4],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 5],
                     &flag1,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 5],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 6],
                     &flag2,
                     &data_hash_inputs_len_rec,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 6],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 7],
                     &flag3,
                     &data_hash_inputs_len_rec,
                     &mut offset,
                 )?;
                 data_hash_inputs_len_rec = rlc_config.mul_add(
                     &mut region,
-                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 7],
+                    &hash_input_len_cells[MAX_AGG_SNARKS * 3 + 8],
                     &flag4,
                     &data_hash_inputs_len_rec,
                     &mut offset,
@@ -996,17 +1131,13 @@ pub(crate) fn conditional_constraints(
                 assert_exist(
                     &rlc_cell,
                     &[
-                        data_rlc_cells[MAX_AGG_SNARKS * 3 + 4].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 3 + 5].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 3 + 6].clone(),
                         data_rlc_cells[MAX_AGG_SNARKS * 3 + 7].clone(),
+                        data_rlc_cells[MAX_AGG_SNARKS * 3 + 8].clone(),
                     ],
                 )?;
                 log::trace!("rlc from chip {:?}", rlc_cell.value());
-                log::trace!(
-                    "rlc from table {:?}",
-                    data_rlc_cells[MAX_AGG_SNARKS * 3 + 4].value()
-                );
                 log::trace!(
                     "rlc from table {:?}",
                     data_rlc_cells[MAX_AGG_SNARKS * 3 + 5].value()
@@ -1015,30 +1146,34 @@ pub(crate) fn conditional_constraints(
                     "rlc from table {:?}",
                     data_rlc_cells[MAX_AGG_SNARKS * 3 + 6].value()
                 );
+                log::trace!(
+                    "rlc from table {:?}",
+                    data_rlc_cells[MAX_AGG_SNARKS * 3 + 7].value()
+                );
 
                 // assertion
                 let t1 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 4],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 5],
                     &mut offset,
                 )?;
                 let t2 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 5],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 6],
                     &mut offset,
                 )?;
                 let t3 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 6],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 7],
                     &mut offset,
                 )?;
                 let t4 = rlc_config.sub(
                     &mut region,
                     &rlc_cell,
-                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 7],
+                    &data_rlc_cells[MAX_AGG_SNARKS * 3 + 8],
                     &mut offset,
                 )?;
                 let t1t2 = rlc_config.mul(&mut region, &t1, &t2, &mut offset)?;
@@ -1101,10 +1236,10 @@ pub(crate) fn conditional_constraints(
                 }
                 // last keccak
                 // we constrain a * flag1 + b * flag2 + c * flag3 + d * flag4 == 1
-                let a = &is_final_cells[3 * (MAX_AGG_SNARKS) + 4];
-                let b = &is_final_cells[3 * (MAX_AGG_SNARKS) + 5];
-                let c = &is_final_cells[3 * (MAX_AGG_SNARKS) + 6];
-                let d = &is_final_cells[3 * (MAX_AGG_SNARKS) + 7];
+                let a = &is_final_cells[3 * (MAX_AGG_SNARKS) + 5];
+                let b = &is_final_cells[3 * (MAX_AGG_SNARKS) + 6];
+                let c = &is_final_cells[3 * (MAX_AGG_SNARKS) + 7];
+                let d = &is_final_cells[3 * (MAX_AGG_SNARKS) + 8];
                 let mut left = rlc_config.mul(&mut region, a, &flag1, &mut offset)?;
                 left = rlc_config.mul_add(&mut region, b, &flag2, &left, &mut offset)?;
                 left = rlc_config.mul_add(&mut region, c, &flag3, &left, &mut offset)?;

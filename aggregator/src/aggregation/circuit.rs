@@ -233,7 +233,7 @@ impl Circuit<Fr> for AggregationCircuit {
 
 
         // ==============================================
-        // step 5: Blob partial result summation circuit
+        // step 5: Blob partial result summation  and challenge point digest circuit
         // ==============================================
         let blob_result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
             let fp_chip = config.fp_chip();
@@ -263,6 +263,19 @@ impl Circuit<Fr> for AggregationCircuit {
             "error blob result len"
         );
 
+        // let mut cp_digest_preimage = self.batch_hash.batch_commit.clone();
+        // //chunk[0].data_hash || ... || chunk[k-1].data_hash
+        // let chunk_data_hash = self.batch_hash.chunks_with_padding
+        //     .iter()
+        //     .take(self.batch_hash.number_of_valid_chunks)
+        //     .flat_map(|chunk_hash| chunk_hash.data_hash.0.iter())
+        //     .cloned()
+        //     .collect::<Vec<_>>();
+        // cp_digest_preimage.extend(chunk_data_hash);
+        //keccak( batch_commit || chunk[0].data_hash || ... || chunk[k-1].data_hash)
+
+
+
         // ==============================================
         // step 2: public input aggregation circuit
         // ==============================================
@@ -281,11 +294,12 @@ impl Circuit<Fr> for AggregationCircuit {
             // orders:
             // - batch_public_input_hash
             // - chunk\[i\].piHash for i in \[0, MAX_AGG_SNARKS)
+            // - challenge_point_hash
             // - batch_data_hash_preimage
             let preimages = self.batch_hash.extract_hash_preimages();
             assert_eq!(
                 preimages.len(),
-                MAX_AGG_SNARKS + 2,
+                MAX_AGG_SNARKS + 3,
                 "error extracting preimages"
             );
             end_timer!(timer);
@@ -310,7 +324,7 @@ impl Circuit<Fr> for AggregationCircuit {
             hash_digest_cells
         };
         // digests
-        let (batch_pi_hash_digest, chunk_pi_hash_digests, _potential_batch_data_hash_digest) =
+        let (batch_pi_hash_digest, chunk_pi_hash_digests, challenge_point_hash_digest, _potential_batch_data_hash_digest) =
             parse_hash_digest_cells(&hash_digest_cells);
 
         // ==============================================

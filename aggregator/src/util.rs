@@ -15,6 +15,8 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     // In total there're 168 bytes. Therefore 2 pi rounds are required.
     // add challenge_point || result  192(6*32)bytes   Therefore 3 pi rounds are required
     let pi_rounds = 3;
+    // commitment||data hash   48+32 = 90 bytes
+    let cp_round = 1;
     // Hash for each chunk is derived from hashing the chunk's
     // chain_id || prev_state || post_state || withdraw_root || data_hash
     // Each chunk hash therefore also requires 2 keccak rounds for 168 bytes.
@@ -22,7 +24,7 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     let chunk_hash_rounds = 3 * max_snarks;
     let data_hash_rounds = get_data_hash_keccak_updates(max_snarks);
 
-    pi_rounds + chunk_hash_rounds + data_hash_rounds
+    pi_rounds + cp_round + chunk_hash_rounds + data_hash_rounds
 }
 pub(crate) fn get_data_hash_keccak_updates(max_snarks: usize) -> usize {
     let data_hash_rounds = (32 * max_snarks) / INPUT_LEN_PER_ROUND;
@@ -48,7 +50,7 @@ pub(crate) fn get_indices(preimages: &[Vec<u8>]) -> (Vec<usize>, Vec<usize>) {
     let keccak_f_rows = get_num_rows_per_update();
     let inner_round_rows = get_num_rows_per_round();
 
-    for preimage in preimages.iter().take(MAX_AGG_SNARKS + 1) {
+    for preimage in preimages.iter().take(MAX_AGG_SNARKS + 2) {
         //  136 = 17 * 8 is the size in bytes of each
         //  input chunk that can be processed by Keccak circuit using absorb
 
@@ -196,6 +198,7 @@ pub(crate) fn parse_hash_preimage_cells(
     &[AssignedCell<Fr, Fr>],
     Vec<&[AssignedCell<Fr, Fr>]>,
     &[AssignedCell<Fr, Fr>],
+    &[AssignedCell<Fr, Fr>],
 ) {
     // each pi hash has INPUT_LEN_PER_ROUND bytes as input
     // keccak will pad the input with another INPUT_LEN_PER_ROUND bytes
@@ -207,12 +210,14 @@ pub(crate) fn parse_hash_preimage_cells(
             &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (i + 1)..INPUT_LEN_PER_ROUND * 3 * (i + 2)],
         );
     }
+    let challenge_point_hash_preimage = &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (MAX_AGG_SNARKS + 1)..INPUT_LEN_PER_ROUND * (3 * (MAX_AGG_SNARKS + 1) +1)];
     let potential_batch_data_hash_preimage =
-        &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (MAX_AGG_SNARKS + 1)..];
+        &hash_input_cells[INPUT_LEN_PER_ROUND * (3 * (MAX_AGG_SNARKS + 1) + 1)..];
 
     (
         batch_pi_hash_preimage,
         chunk_pi_hash_preimages,
+        challenge_point_hash_preimage,
         potential_batch_data_hash_preimage,
     )
 }
@@ -225,16 +230,19 @@ pub(crate) fn parse_hash_digest_cells(
     &[AssignedCell<Fr, Fr>],
     Vec<&[AssignedCell<Fr, Fr>]>,
     &[AssignedCell<Fr, Fr>],
+    &[AssignedCell<Fr, Fr>],
 ) {
     let batch_pi_hash_digest = &hash_output_cells[0..DIGEST_LEN];
     let mut chunk_pi_hash_digests = vec![];
     for i in 0..MAX_AGG_SNARKS {
         chunk_pi_hash_digests.push(&hash_output_cells[DIGEST_LEN * (i + 1)..DIGEST_LEN * (i + 2)]);
     }
-    let potential_batch_data_hash_digest = &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 1)..];
+    let challenge_point_hash_digest = &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 1)..DIGEST_LEN * (MAX_AGG_SNARKS + 2)];
+    let potential_batch_data_hash_digest = &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 2)..];
     (
         batch_pi_hash_digest,
         chunk_pi_hash_digests,
+        challenge_point_hash_digest,
         potential_batch_data_hash_digest,
     )
 }
