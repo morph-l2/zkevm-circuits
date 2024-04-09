@@ -40,7 +40,6 @@ pub(crate) const BATCH_COMMIT_INDEX: usize = 136;
 pub(crate) const BATCH_CHALLENGE_POINT_INDEX: usize = 184;
 pub(crate) const BATCH_RESULT_INDEX: usize = 280;
 
-
 // ================================
 // aggregator parameters
 // ================================

@@ -9,8 +9,8 @@ use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs;
 use snark_verifier_sdk::{gen_pk, gen_snark_shplonk, verify_snark_shplonk, CircuitExt};
 
 use crate::{
-    aggregation::AggregationCircuit, batch::BatchHash, constants::MAX_AGG_SNARKS, layer_0,
-    tests::mock_chunk::MockChunkCircuit, ChunkHash, chunk,
+    aggregation::AggregationCircuit, batch::BatchHash, chunk, constants::MAX_AGG_SNARKS, layer_0,
+    tests::mock_chunk::MockChunkCircuit, ChunkHash,
 };
 
 #[test]
@@ -98,7 +98,7 @@ fn build_new_aggregation_circuit(num_real_chunks: usize) -> AggregationCircuit {
 
     let mut rng = test_rng();
     let params = gen_srs(k0);
-    let batch_commit_bytes = [0u8;48];
+    let batch_commit_bytes = [0u8; 48];
     let batch_commit = H384::from_slice(batch_commit_bytes.as_slice());
     let mut chunks_without_padding = (0..num_real_chunks)
         .map(|_| ChunkHash::mock_random_chunk_hash_for_testing(&mut rng))
@@ -114,15 +114,12 @@ fn build_new_aggregation_circuit(num_real_chunks: usize) -> AggregationCircuit {
         .cloned()
         .collect::<Vec<_>>();
     let batch_data_hash = keccak256(preimage);
-    let cp_preimage = [
-        batch_commit.0.as_slice(),
-        batch_data_hash.as_slice(),
-    ].concat();
+    let cp_preimage = [batch_commit.0.as_slice(), batch_data_hash.as_slice()].concat();
     let mut challenge_point = keccak256(cp_preimage);
 
     challenge_point[31] = 0;
 
-    for chunk_hash in chunks_without_padding.iter_mut(){
+    for chunk_hash in chunks_without_padding.iter_mut() {
         chunk_hash.challenge_point = U256::from_little_endian(&challenge_point);
     }
 
@@ -154,7 +151,6 @@ fn build_new_aggregation_circuit(num_real_chunks: usize) -> AggregationCircuit {
     // ==========================
     let padded_snarks =
         { vec![real_snarks.last().unwrap().clone(); MAX_AGG_SNARKS - num_real_chunks] };
-
 
     // ==========================
     // batch

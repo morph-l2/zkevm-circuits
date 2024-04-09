@@ -24,7 +24,6 @@
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("This program requires a 64-bit target architecture.");
 
-
 pub mod blob_circuit;
 pub mod bytecode_circuit;
 pub mod copy_circuit;

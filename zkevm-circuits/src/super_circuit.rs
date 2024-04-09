@@ -60,6 +60,7 @@ use crate::bytecode_circuit::circuit::to_poseidon_hash::{
 #[cfg(not(feature = "poseidon-codehash"))]
 use crate::bytecode_circuit::circuit::BytecodeCircuitConfig;
 use crate::{
+    blob_circuit::{BlobCircuit, BlobCircuitConfig, BlobCircuitConfigArgs},
     bytecode_circuit::circuit::{BytecodeCircuit, BytecodeCircuitConfigArgs},
     copy_circuit::{CopyCircuit, CopyCircuitConfig, CopyCircuitConfigArgs},
     ecc_circuit::{EccCircuit, EccCircuitConfig, EccCircuitConfigArgs},
@@ -81,7 +82,6 @@ use crate::{
         TxTable, U16Table, U8Table,
     },
     tx_circuit::{TxCircuit, TxCircuitConfig, TxCircuitConfigArgs},
-    blob_circuit::{BlobCircuit, BlobCircuitConfig, BlobCircuitConfigArgs},
     util::{circuit_stats, log2_ceil, Challenges, SubCircuit, SubCircuitConfig},
     witness::{block_convert, Block, Transaction},
 };
@@ -375,9 +375,9 @@ impl SubCircuitConfig<Fr> for SuperCircuitConfig<Fr> {
         }
 
         let blob_circuit = BlobCircuitConfig::new(
-            meta, 
-            BlobCircuitConfigArgs { 
-                challenges: challenges_expr, 
+            meta,
+            BlobCircuitConfigArgs {
+                challenges: challenges_expr,
             },
         );
         log_circuit_info(meta, "blob circuit");
@@ -623,7 +623,6 @@ impl<
         instance.extend_from_slice(&self.exp_circuit.instance());
         instance.extend_from_slice(&self.evm_circuit.instance());
         instance.extend_from_slice(&self.blob_circuit.instance());
-
 
         instance
     }

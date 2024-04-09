@@ -1,6 +1,10 @@
 use crate::constants::{DIGEST_LEN, INPUT_LEN_PER_ROUND, MAX_AGG_SNARKS};
 use eth_types::Field;
-use halo2_proofs::{circuit::{AssignedCell, Value}, halo2curves::bn256::Fr, plonk::Error};
+use halo2_proofs::{
+    circuit::{AssignedCell, Value},
+    halo2curves::bn256::Fr,
+    plonk::Error,
+};
 use itertools::Itertools;
 use zkevm_circuits::keccak_circuit::keccak_packed_multi::{
     get_num_rows_per_round, get_num_rows_per_update,
@@ -143,7 +147,6 @@ pub(crate) fn assert_equal_value<F: Field>(
     })
 }
 
-
 #[inline]
 // if cond = 1, assert two cells have same value;
 // (NOT constraining equality in circuit)
@@ -210,7 +213,9 @@ pub(crate) fn parse_hash_preimage_cells(
             &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (i + 1)..INPUT_LEN_PER_ROUND * 3 * (i + 2)],
         );
     }
-    let challenge_point_hash_preimage = &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (MAX_AGG_SNARKS + 1)..INPUT_LEN_PER_ROUND * (3 * (MAX_AGG_SNARKS + 1) +1)];
+    let challenge_point_hash_preimage =
+        &hash_input_cells[INPUT_LEN_PER_ROUND * 3 * (MAX_AGG_SNARKS + 1)
+            ..INPUT_LEN_PER_ROUND * (3 * (MAX_AGG_SNARKS + 1) + 1)];
     let potential_batch_data_hash_preimage =
         &hash_input_cells[INPUT_LEN_PER_ROUND * (3 * (MAX_AGG_SNARKS + 1) + 1)..];
 
@@ -237,7 +242,8 @@ pub(crate) fn parse_hash_digest_cells(
     for i in 0..MAX_AGG_SNARKS {
         chunk_pi_hash_digests.push(&hash_output_cells[DIGEST_LEN * (i + 1)..DIGEST_LEN * (i + 2)]);
     }
-    let challenge_point_hash_digest = &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 1)..DIGEST_LEN * (MAX_AGG_SNARKS + 2)];
+    let challenge_point_hash_digest =
+        &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 1)..DIGEST_LEN * (MAX_AGG_SNARKS + 2)];
     let potential_batch_data_hash_digest = &hash_output_cells[DIGEST_LEN * (MAX_AGG_SNARKS + 2)..];
     (
         batch_pi_hash_digest,

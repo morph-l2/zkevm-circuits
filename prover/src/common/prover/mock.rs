@@ -16,11 +16,9 @@ impl Prover {
 
         let instances = circuit.instances();
         let mock_prover = MockProver::<Fr>::run(degree, circuit, instances).unwrap();
-        
-        
+
         mock_prover.assert_satisfied_par();
 
-        
         log::info!("Mock prove for {id} - END");
     }
 }

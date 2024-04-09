@@ -12,7 +12,8 @@ use snark_verifier_sdk::CircuitExt;
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    constants::{ACC_LEN, DIGEST_LEN}, ChunkHash, RlcConfig, LOG_DEGREE
+    constants::{ACC_LEN, DIGEST_LEN},
+    ChunkHash, RlcConfig, LOG_DEGREE,
 };
 
 /// This config is used to compute RLCs for bytes.

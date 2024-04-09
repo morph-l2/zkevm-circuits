@@ -1,3 +1,9 @@
+use crate::{
+    constants::{BITS, LIMBS},
+    param::ConfigParams,
+    RlcConfig,
+};
+use bls12_381::Scalar as Fp;
 use halo2_proofs::{
     halo2curves::bn256::{Fq, Fr, G1Affine},
     plonk::{Column, ConstraintSystem, Instance},
@@ -14,12 +20,6 @@ use zkevm_circuits::{
     keccak_circuit::{KeccakCircuitConfig, KeccakCircuitConfigArgs},
     table::KeccakTable,
     util::{Challenges, SubCircuitConfig},
-};
-use bls12_381::Scalar as Fp;
-use crate::{
-    constants::{BITS, LIMBS},
-    param::ConfigParams,
-    RlcConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -155,6 +155,11 @@ impl AggregationConfig {
 
     /// Fp chip configuration
     pub fn fp_chip(&self) -> FpConfig<Fr, Fp> {
-        FpConfig::construct(self.blob_field_config.range.clone(), BITS, LIMBS, modulus::<Fp>())
+        FpConfig::construct(
+            self.blob_field_config.range.clone(),
+            BITS,
+            LIMBS,
+            modulus::<Fp>(),
+        )
     }
 }

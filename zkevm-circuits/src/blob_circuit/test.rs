@@ -1,4 +1,4 @@
-use crate::{blob_circuit::BlobCircuit, util::SubCircuit};
+use crate::{blob_circuit::BlobCircuit, util::SubCircuit, witness::CircuitBlob};
 use bls12_381::Scalar as Fp;
 use eth_types::{
     sign_types::{sign, SignData},
@@ -6,15 +6,18 @@ use eth_types::{
 };
 use halo2_base::utils::fe_to_biguint;
 use halo2_proofs::{
-    arithmetic::Field as HaloField, circuit, dev::MockProver, halo2curves::{
+    arithmetic::Field as HaloField,
+    circuit,
+    dev::MockProver,
+    halo2curves::{
         bn256::Fr,
         group::Curve,
-        secp256k1::{self, Secp256k1Affine}, FieldExt,
-    }
+        secp256k1::{self, Secp256k1Affine},
+        FieldExt,
+    },
 };
 use rand::{rngs::OsRng, Rng, RngCore};
 use std::marker::PhantomData;
-use crate::{witness::CircuitBlob};
 
 use crate::blob_circuit::util::*;
 
@@ -38,7 +41,7 @@ fn test_blob_consistency() {
     let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, 0, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        blob:circuit_blob,
+        blob: circuit_blob,
         exports: std::cell::RefCell::new(None),
         _marker: PhantomData,
     };
@@ -54,10 +57,8 @@ fn test_blob_consistency() {
 }
 
 #[test]
-fn test_partial_blob_consistency(){
-    let blob: Vec<Fp> = (0..51)
-        .map(|_| Fp::random(OsRng))
-        .collect();
+fn test_partial_blob_consistency() {
+    let blob: Vec<Fp> = (0..51).map(|_| Fp::random(OsRng)).collect();
 
     log::trace!("blob:{:?}", blob);
 
@@ -73,7 +74,7 @@ fn test_partial_blob_consistency(){
     let circuit_blob = CircuitBlob::<Fr>::new(challenge_point, index, blob.clone(), result);
 
     let circuit = BlobCircuit::<Fr> {
-        blob:circuit_blob,
+        blob: circuit_blob,
         exports: std::cell::RefCell::new(None),
         _marker: PhantomData::default(),
     };
@@ -102,8 +103,7 @@ fn test_zero_blob() {
 
 #[test]
 
-fn test_root_of_unity(){
-
+fn test_root_of_unity() {
     let modulus = U256::from_str_radix(Fp::MODULUS, 16).unwrap();
 
     let exponent = (modulus - U256::one()) / U256::from(4096);

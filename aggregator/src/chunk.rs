@@ -1,11 +1,13 @@
 //! This module implements `Chunk` related data types.
 //! A chunk is a list of blocks.
-use eth_types::{ToBigEndian, H256, U256, ToLittleEndian};
+use bls12_381::Scalar as Fp;
+use eth_types::{ToBigEndian, ToLittleEndian, H256, U256};
 use ethers_core::utils::{keccak256, rlp::Encodable};
 use halo2_proofs::halo2curves::bn256::Fr;
-use bls12_381::Scalar as Fp;
 use serde::{Deserialize, Serialize};
-use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{decompose_biguint, fe_to_biguint};
+use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::{
+    decompose_biguint, fe_to_biguint,
+};
 use std::iter;
 use zkevm_circuits::witness::Block;
 
@@ -111,7 +113,6 @@ impl ChunkHash {
     /// Sample a chunk hash from random (for testing)
     #[cfg(test)]
     pub(crate) fn mock_random_chunk_hash_for_testing<R: rand::RngCore>(r: &mut R) -> Self {
-
         let mut prev_state_root = [0u8; 32];
         r.fill_bytes(&mut prev_state_root);
         let mut post_state_root = [0u8; 32];
@@ -162,7 +163,8 @@ impl ChunkHash {
     }
 
     /// Public input hash for a given chunk is defined as
-    ///  keccak( chain id || prev state root || post state root || withdraw root || data hash || x || y)
+    ///  keccak( chain id || prev state root || post state root || withdraw root || data hash || x
+    /// || y)
     pub fn public_input_hash(&self) -> H256 {
         let preimage = self.extract_hash_preimage();
         keccak256::<&[u8]>(preimage.as_ref()).into()
@@ -188,13 +190,27 @@ impl ChunkHash {
         .concat()
     }
 
-    fn decompose_cp_result(&self) -> Vec<[u8; 32]>{
+    fn decompose_cp_result(&self) -> Vec<[u8; 32]> {
         let cp_fe = Fp::from_bytes(&self.challenge_point.to_le_bytes()).unwrap();
         let cp = decompose_biguint::<Fr>(&fe_to_biguint(&cp_fe), 3, 88);
-        let mut preimage = cp.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        let mut preimage = cp
+            .iter()
+            .map(|x| {
+                let mut be_bytes = x.to_bytes();
+                be_bytes.reverse();
+                be_bytes
+            })
+            .collect::<Vec<_>>();
         let pr_fe = Fp::from_bytes(&self.partial_result.to_le_bytes()).unwrap();
         let re = decompose_biguint::<Fr>(&fe_to_biguint(&pr_fe), 3, 88);
-        let mut re_preimage = re.iter().map(|x| {let mut be_bytes = x.to_bytes(); be_bytes.reverse(); be_bytes}).collect::<Vec<_>>();
+        let mut re_preimage = re
+            .iter()
+            .map(|x| {
+                let mut be_bytes = x.to_bytes();
+                be_bytes.reverse();
+                be_bytes
+            })
+            .collect::<Vec<_>>();
         preimage.append(&mut re_preimage);
         preimage
     }

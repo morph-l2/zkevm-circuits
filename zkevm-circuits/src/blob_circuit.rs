@@ -1,7 +1,7 @@
 use halo2_base::{
-    Context,
-    utils::{ScalarField, fe_to_biguint, modulus}, 
-    gates::GateInstructions, AssignedValue,
+    gates::GateInstructions,
+    utils::{fe_to_biguint, modulus, ScalarField},
+    AssignedValue, Context,
 };
 
 use halo2_ecc::{
@@ -12,15 +12,18 @@ use halo2_ecc::{
     },
 };
 use halo2_proofs::{
-    circuit::{Layouter, Value, Cell},
-    plonk::{ConstraintSystem, Error, Expression, Assigned},
+    circuit::{Cell, Layouter, Value},
+    plonk::{Assigned, ConstraintSystem, Error, Expression},
 };
 
+use crate::{
+    util::{Challenges, SubCircuit, SubCircuitConfig},
+    witness::{Block, CircuitBlob},
+};
 use bls12_381::Scalar as Fp;
-use itertools::Itertools;
-use crate::{util::{SubCircuit, Challenges, SubCircuitConfig}, witness::{Block, CircuitBlob},};
-use std::marker::PhantomData;
 use eth_types::{Field, U256};
+use itertools::Itertools;
+use std::marker::PhantomData;
 
 mod dev;
 mod scalar_field_element;
@@ -72,9 +75,9 @@ pub struct BlobCircuit<F: Field> {
     // pub batch_commit: F,
     // /// challenge point x
     // pub challenge_point: Fp,
-    // /// index of blob element    
+    // /// index of blob element
     // pub index: usize,
-    // /// partial blob element    
+    // /// partial blob element
     // pub partial_blob: Vec<Fp>,
     // /// partial result
     // pub partial_result: Fp,
@@ -147,19 +150,25 @@ impl<F: Field> BlobCircuit<F> {
         let index = self.blob.index;
         let len = self.blob.partial_blob.len();
 
-        let blob = self.blob.partial_blob.clone().into_iter().map(ScalarFieldElement::private);
-        let rou = roots_of_unity_brp.clone()
-                                            .into_iter()
-                                            .map(ScalarFieldElement::constant)
-                                            .enumerate()
-                                            .filter_map(|(i, x)| 
-                                                if i >= index && i< index + len{
-                                                    Some(x)
-                                                } else{
-                                                    None
-                                                }
-                                            );
-                                            
+        let blob = self
+            .blob
+            .partial_blob
+            .clone()
+            .into_iter()
+            .map(ScalarFieldElement::private);
+        let rou = roots_of_unity_brp
+            .clone()
+            .into_iter()
+            .map(ScalarFieldElement::constant)
+            .enumerate()
+            .filter_map(|(i, x)| {
+                if i >= index && i < index + len {
+                    Some(x)
+                } else {
+                    None
+                }
+            });
+
         let z = ScalarFieldElement::private(self.blob.z);
         let p = ((0..12).fold(z.clone(), |square, _| square.clone() * square) - one)
             * rou
@@ -218,8 +227,8 @@ impl<F: Field> BlobCircuit<F> {
             .map(|_| load_private(fp_chip, ctx, Value::known(Fp::from(0))))
             .collect::<Vec<_>>();
 
-
-        let real_blob = self.blob
+        let real_blob = self
+            .blob
             .partial_blob
             .iter()
             .map(|x| load_private(fp_chip, ctx, Value::known(*x)))
@@ -332,10 +341,11 @@ impl<F: Field> BlobCircuit<F> {
         barycentric_evaluation = fp_chip.mul(ctx, &barycentric_evaluation, &factor);
 
         // === STEP 3: select between the two case ===
-        // if challenge_point is a root of unity(index..index + partial_blob_len), then result = blob[i]
-        // if challenge_point is a root of unity((0..self.index)or((self.index + partial_blob_len)..BLOB_WIDTH), then result = 0
-        // else result = barycentric_evaluation
-        // (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH)
+        // if challenge_point is a root of unity(index..index + partial_blob_len), then result =
+        // blob[i] if challenge_point is a root of unity((0..self.index)or((self.index +
+        // partial_blob_len)..BLOB_WIDTH), then result = 0 else result =
+        // barycentric_evaluation (0..self.index).chain((self.index +
+        // partial_blob_len)..BLOB_WIDTH)
 
         // for i in (0..self.index).chain((self.index + partial_blob_len)..BLOB_WIDTH) {
         //     let denominator_i_no_carry = fp_chip.sub_no_carry(
@@ -425,8 +435,8 @@ impl<F: Field> SubCircuit<F> for BlobCircuit<F> {
     type Config = BlobCircuitConfig<F>;
 
     fn new_from_block(block: &Block<F>) -> Self {
-        Self{
-            blob:CircuitBlob::<F>::new_from_block(block),
+        Self {
+            blob: CircuitBlob::<F>::new_from_block(block),
             exports: std::cell::RefCell::new(None),
             _marker: Default::default(),
         }

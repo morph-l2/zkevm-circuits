@@ -1,6 +1,6 @@
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::{
-    circuit::{AssignedCell, Layouter, Region, Value, Cell},
+    circuit::{AssignedCell, Cell, Layouter, Region, Value},
     halo2curves::{
         bn256::{Bn256, Fq, Fr, G1Affine, G2Affine},
         pairing::Engine,
@@ -10,7 +10,10 @@ use halo2_proofs::{
 use itertools::Itertools;
 use rand::Rng;
 use snark_verifier::{
-    loader::{halo2::halo2_ecc::halo2_base::{self, AssignedValue}, native::NativeLoader},
+    loader::{
+        halo2::halo2_ecc::halo2_base::{self, AssignedValue},
+        native::NativeLoader,
+    },
     pcs::{
         kzg::{Bdfg21, Kzg, KzgAccumulator, KzgAs},
         AccumulationSchemeProver,
@@ -33,10 +36,15 @@ use zkevm_circuits::{
 };
 
 use crate::{
-    constants::{CHAIN_ID_LEN, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS, CHALLENGE_POINT_INDEX, RESULT_INDEX, BATCH_CHALLENGE_POINT_INDEX, BATCH_RESULT_INDEX, BATCH_COMMIT_INDEX},
+    constants::{
+        BATCH_CHALLENGE_POINT_INDEX, BATCH_COMMIT_INDEX, BATCH_RESULT_INDEX, CHAIN_ID_LEN,
+        CHALLENGE_POINT_INDEX, DIGEST_LEN, INPUT_LEN_PER_ROUND, LOG_DEGREE, MAX_AGG_SNARKS,
+        RESULT_INDEX,
+    },
     util::{
-        assert_conditional_equal, assert_equal, assert_exist, get_indices, get_max_keccak_updates,
-        parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells, assert_equal_value,
+        assert_conditional_equal, assert_equal, assert_equal_value, assert_exist, get_indices,
+        get_max_keccak_updates, parse_hash_digest_cells, parse_hash_preimage_cells,
+        parse_pi_hash_rlc_cells,
     },
     AggregationConfig, RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, LIMBS, POST_STATE_ROOT_INDEX,
     PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
@@ -246,7 +254,7 @@ pub(crate) fn extract_hash_cells(
     //      batch_commit ||
     //      challenge_point ||
     //      result)
-    // challenge_point_hash preimage = 
+    // challenge_point_hash preimage =
     //      (batch_commit || batch_data_hash)
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
@@ -486,7 +494,7 @@ fn copy_constraints(
                     }
                 }
                 // assert batch_data_hash preimage equal challenge point hash preimage
-                for i in 0..48{
+                for i in 0..48 {
                     assert_equal(
                         &batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i],
                         &challenge_point_hash_preimage[i],
@@ -497,22 +505,25 @@ fn copy_constraints(
                         )
                         .as_str(),
                     )?;
-                    region.constrain_equal(batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i].cell(), challenge_point_hash_preimage[i].cell())?;
+                    region.constrain_equal(
+                        batch_pi_hash_preimage[BATCH_COMMIT_INDEX + i].cell(),
+                        challenge_point_hash_preimage[i].cell(),
+                    )?;
                 }
                 // for i in 0..32{
                 //     assert_equal(
                 //         &batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i],
                 //         &challenge_point_hash_preimage[48 + i],
                 //         format!(
-                //             "batch data hash and challenge_point data hash do not match: {:?} {:?}",
-                //             &batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i].value(),
-                //             &challenge_point_hash_preimage[48 + i].value(),
-                //         )
+                //             "batch data hash and challenge_point data hash do not match: {:?}
+                // {:?}",             &batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX
+                // + i].value(),             &challenge_point_hash_preimage[48 +
+                // i].value(),         )
                 //         .as_str(),
                 //     )?;
-                //     region.constrain_equal(batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX + i].cell(), challenge_point_hash_preimage[48 + i].cell());
-                // }
-                
+                //     region.constrain_equal(batch_pi_hash_preimage[CHUNK_DATA_HASH_INDEX +
+                // i].cell(), challenge_point_hash_preimage[48 + i].cell()); }
+
                 Ok(())
             },
         )
@@ -718,11 +729,11 @@ pub(crate) fn conditional_constraints(
                 result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX..BATCH_RESULT_INDEX+32], &two_hundred_and_fifty_six, &mut offset)?);
                 result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX+32..BATCH_RESULT_INDEX+64], &two_hundred_and_fifty_six, &mut offset)?);
                 result_preimage_rlc.push(rlc_config.rlc(&mut region, &batch_pi_hash_preimage[BATCH_RESULT_INDEX+64..BATCH_RESULT_INDEX+96], &two_hundred_and_fifty_six, &mut offset)?);
-                
+
                 for i in 0..assigned_result.len(){
                     let lhs = &assigned_result[i];
                     let rhs = &result_preimage_rlc[i];
-                    
+
                     log::trace!("{i}th assigned result:{:?}; result_preimage_rlc{:?}", lhs.clone().value(), rhs.clone().value());
                     // sanity check
                     assert_equal_value(
@@ -898,7 +909,7 @@ pub(crate) fn conditional_constraints(
                         region.constrain_equal(
                             challenge_point_hash_preimage[i * 8 + j + 48].cell(),
                             rhs.cell(),
-                        )?;                        
+                        )?;
                     }
                 }
 
@@ -1012,7 +1023,7 @@ pub(crate) fn conditional_constraints(
                                 .three_hundred_and_seventy_six_cell(cur_hash_len.cell().region_index),
                         )
                     })?;
-                        
+
                 // MAX_AGG_SNARKS hashes
                 hash_input_len_cells
                     .iter()

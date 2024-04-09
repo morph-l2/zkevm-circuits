@@ -1,15 +1,28 @@
 use ark_std::{end_timer, start_timer};
+use bls12_381::Scalar as Fp;
 use eth_types::{Field, ToLittleEndian};
 use halo2_proofs::{
-     circuit::{Layouter, SimpleFloorPlanner, Value}, halo2curves::bn256::{Bn256, Fr, G1Affine}, plonk::{Circuit, ConstraintSystem, Error, Selector}, poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG}
+    circuit::{Layouter, SimpleFloorPlanner, Value},
+    halo2curves::bn256::{Bn256, Fr, G1Affine},
+    plonk::{Circuit, ConstraintSystem, Error, Selector},
+    poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
 };
 use itertools::Itertools;
 use rand::Rng;
-use std::{env, fs::File};
-use bls12_381::Scalar as Fp;
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier::loader::halo2::halo2_ecc::halo2_base;
-use snark_verifier::{loader::halo2::halo2_ecc::{bigint::{CRTInteger, OverflowInteger}, fields::{fp::FpConfig, FieldChip}, halo2_base::{gates::{GateInstructions, RangeInstructions}, utils::fe_to_biguint}}, pcs::kzg::KzgSuccinctVerifyingKey, util::arithmetic::PrimeField};
+use snark_verifier::{
+    loader::halo2::halo2_ecc::{
+        bigint::{CRTInteger, OverflowInteger},
+        fields::{fp::FpConfig, FieldChip},
+        halo2_base::{
+            gates::{GateInstructions, RangeInstructions},
+            utils::fe_to_biguint,
+        },
+    },
+    pcs::kzg::KzgSuccinctVerifyingKey,
+    util::arithmetic::PrimeField,
+};
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier::{
     loader::halo2::{
@@ -21,12 +34,15 @@ use snark_verifier::{
 #[cfg(not(feature = "disable_proof_aggregation"))]
 use snark_verifier_sdk::{aggregate, flatten_accumulator};
 use snark_verifier_sdk::{CircuitExt, Snark, SnarkWitness};
+use std::{env, fs::File};
 use zkevm_circuits::util::Challenges;
 
 use crate::{
-    batch::BatchHash, constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS}, 
-    core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check}, 
-    util::parse_hash_digest_cells, ConfigParams, BITS, LIMBS
+    batch::BatchHash,
+    constants::{ACC_LEN, DIGEST_LEN, MAX_AGG_SNARKS},
+    core::{assign_batch_hashes, extract_proof_and_instances_with_pairing_check},
+    util::parse_hash_digest_cells,
+    ConfigParams, BITS, LIMBS,
 };
 
 use super::AggregationConfig;
@@ -231,34 +247,44 @@ impl Circuit<Fr> for AggregationCircuit {
         };
         end_timer!(timer);
 
-
         // ==============================================
         // step 5: Blob partial result summation  and challenge point digest circuit
         // ==============================================
-        let blob_result = layouter.assign_region(||"Result Summation", |mut region|-> Result<(Vec<AssignedValue<Fr>>), Error>{
-            let fp_chip = config.fp_chip();
-            let mut ctx = fp_chip.new_context(region);
-            let mut final_result= fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
-            let mut blob_result = vec![];
-            for chunk in self.batch_hash.chunks_with_padding.iter().take(self.batch_hash.number_of_valid_chunks) {
-                let partial_result = load_private(&fp_chip,&mut ctx, Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()));
-                let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
-                final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
-                blob_result.push(partial_result.truncation.limbs[0]);
-                blob_result.push(partial_result.truncation.limbs[1]);
-                blob_result.push(partial_result.truncation.limbs[2]);
-            } 
-            
-            blob_result.push(final_result.truncation.limbs[0]);
-            blob_result.push(final_result.truncation.limbs[1]);
-            blob_result.push(final_result.truncation.limbs[2]);
+        let blob_result = layouter.assign_region(
+            || "Result Summation",
+            |mut region| -> Result<(Vec<AssignedValue<Fr>>), Error> {
+                let fp_chip = config.fp_chip();
+                let mut ctx = fp_chip.new_context(region);
+                let mut final_result = fp_chip.load_constant(&mut ctx, fe_to_biguint(&Fp::zero()));
+                let mut blob_result = vec![];
+                for chunk in self
+                    .batch_hash
+                    .chunks_with_padding
+                    .iter()
+                    .take(self.batch_hash.number_of_valid_chunks)
+                {
+                    let partial_result = load_private(
+                        &fp_chip,
+                        &mut ctx,
+                        Value::known(Fp::from_bytes(&chunk.partial_result.to_le_bytes()).unwrap()),
+                    );
+                    let tmp_result = fp_chip.add_no_carry(&mut ctx, &partial_result, &final_result);
+                    final_result = fp_chip.carry_mod(&mut ctx, &tmp_result);
+                    blob_result.push(partial_result.truncation.limbs[0]);
+                    blob_result.push(partial_result.truncation.limbs[1]);
+                    blob_result.push(partial_result.truncation.limbs[2]);
+                }
 
-            Ok(blob_result)            
+                blob_result.push(final_result.truncation.limbs[0]);
+                blob_result.push(final_result.truncation.limbs[1]);
+                blob_result.push(final_result.truncation.limbs[2]);
+
+                Ok(blob_result)
             },
         )?;
 
         assert_eq!(
-            blob_result.len(), 
+            blob_result.len(),
             3 * (self.batch_hash.number_of_valid_chunks + 1),
             "error blob result len"
         );
@@ -273,8 +299,6 @@ impl Circuit<Fr> for AggregationCircuit {
         //     .collect::<Vec<_>>();
         // cp_digest_preimage.extend(chunk_data_hash);
         //keccak( batch_commit || chunk[0].data_hash || ... || chunk[k-1].data_hash)
-
-
 
         // ==============================================
         // step 2: public input aggregation circuit
@@ -324,8 +348,12 @@ impl Circuit<Fr> for AggregationCircuit {
             hash_digest_cells
         };
         // digests
-        let (batch_pi_hash_digest, chunk_pi_hash_digests, challenge_point_hash_digest, _potential_batch_data_hash_digest) =
-            parse_hash_digest_cells(&hash_digest_cells);
+        let (
+            batch_pi_hash_digest,
+            chunk_pi_hash_digests,
+            challenge_point_hash_digest,
+            _potential_batch_data_hash_digest,
+        ) = parse_hash_digest_cells(&hash_digest_cells);
 
         // ==============================================
         // step 3: assert public inputs to the snarks are correct
@@ -416,7 +444,6 @@ impl Circuit<Fr> for AggregationCircuit {
             }
         }
 
-
         end_timer!(witness_time);
         Ok(())
     }
@@ -459,8 +486,14 @@ impl CircuitExt<Fr> for AggregationCircuit {
     }
 }
 
-pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a: Value<Fp>) -> CRTInteger<F> {
-    let a_vec = a.map(|x| halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), LIMBS, BITS)).transpose_vec(LIMBS);
+pub fn load_private<F: Field>(
+    fq_chip: &FpConfig<F, Fp>,
+    ctx: &mut Context<F>,
+    a: Value<Fp>,
+) -> CRTInteger<F> {
+    let a_vec = a
+        .map(|x| halo2_base::utils::decompose_biguint::<F>(&fe_to_biguint(&x), LIMBS, BITS))
+        .transpose_vec(LIMBS);
 
     let limbs = fq_chip.range.gate().assign_witnesses(ctx, a_vec);
 
@@ -472,10 +505,14 @@ pub fn load_private<F: Field>(fq_chip: &FpConfig<F, Fp>, ctx: &mut Context<F>, a
         fq_chip.limb_bases.iter().cloned(),
     );
 
-    let a_loaded =
-        CRTInteger::construct(OverflowInteger::construct(limbs, fq_chip.limb_bits), a_native, a.map(|x| fe_to_biguint(&x).into()));
+    let a_loaded = CRTInteger::construct(
+        OverflowInteger::construct(limbs, fq_chip.limb_bits),
+        a_native,
+        a.map(|x| fe_to_biguint(&x).into()),
+    );
 
-    // TODO: this range check prevents loading witnesses that are not in "proper" representation form, is that ok?
+    // TODO: this range check prevents loading witnesses that are not in "proper" representation
+    // form, is that ok?
     fq_chip.range_check(ctx, &a_loaded, Fp::NUM_BITS as usize);
     a_loaded
 }

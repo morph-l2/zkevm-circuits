@@ -10,7 +10,8 @@ use crate::{
     blob_circuit::util::{poly_eval_partial, FP_S},
     evm_circuit::util::rlc,
     table::{BlockContextFieldTag, RwTableTag},
-    util::SubCircuit, witness::blob,
+    util::SubCircuit,
+    witness::blob,
 };
 use bus_mapping::{
     circuit_input_builder::{
@@ -24,7 +25,8 @@ use halo2_proofs::{circuit::Value, halo2curves::FieldExt};
 use itertools::Itertools;
 
 use super::{
-    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode, ExecStep, MptUpdates, RwMap, Transaction
+    blob::BlockBlob, mpt::ZktrieState as MptState, step::step_convert, tx::tx_convert, Bytecode,
+    ExecStep, MptUpdates, RwMap, Transaction,
 };
 use crate::util::Challenges;
 
@@ -523,18 +525,18 @@ pub fn block_convert<F: Field>(
     }
 
     let txs = block
-    .txs()
-    .iter()
-    .enumerate()
-    .map(|(idx, tx)| {
-        let next_block_num = if idx + 1 < num_txs {
-            block.txs()[idx + 1].block_num
-        } else {
-            last_block_num + 1
-        };
-        tx_convert(tx, idx + 1, chain_id, next_block_num)
-    })
-    .collect();
+        .txs()
+        .iter()
+        .enumerate()
+        .map(|(idx, tx)| {
+            let next_block_num = if idx + 1 < num_txs {
+                block.txs()[idx + 1].block_num
+            } else {
+                last_block_num + 1
+            };
+            tx_convert(tx, idx + 1, chain_id, next_block_num)
+        })
+        .collect();
 
     let omega = Fp::from(123).pow(&[(FP_S - 12) as u64, 0, 0, 0]);
     let mut batch_blob = [0u8; BLOB_DATA_SIZE];
@@ -589,11 +591,12 @@ pub fn block_convert<F: Field>(
         chain_id,
         start_l1_queue_index: block.start_l1_queue_index,
         precompile_events: block.precompile_events.clone(),
-        blob: BlockBlob{ 
+        blob: BlockBlob {
             batch_commit: Word::zero(),
             z: challenge_point,
-            index:0, 
-            p_y:partial_result },
+            index: 0,
+            p_y: partial_result,
+        },
     })
 }
 

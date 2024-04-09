@@ -3,7 +3,9 @@ use crate::{
     config::{LayerId, ZKEVM_DEGREES},
     consts::CHUNK_VK_FILENAME,
     io::try_to_read,
-    utils::{chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index, decompose_cp_result},
+    utils::{
+        chunk_trace_to_witness_block, chunk_trace_to_witness_block_with_index, decompose_cp_result,
+    },
     ChunkProof,
 };
 use aggregator::ChunkHash;
@@ -110,7 +112,7 @@ impl Prover {
             index,
             partial_result,
         )?;
-        
+
         //add pihash preimage
         let blob_cp_result = decompose_cp_result(&witness_block);
 
@@ -121,7 +123,7 @@ impl Prover {
         witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[3]);
         witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[4]);
         witness_block.keccak_inputs[1].extend_from_slice(&blob_cp_result[5]);
-        
+
         log::trace!("kecck_inputs for pi:{:?}", witness_block.keccak_inputs[1]);
 
         log::info!("Got witness block");

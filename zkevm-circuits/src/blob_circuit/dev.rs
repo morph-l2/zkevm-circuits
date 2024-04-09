@@ -5,9 +5,10 @@ use crate::util::Challenges;
 //#[cfg(feature = "onephase")]
 //use crate::util::MockChallenges as Challenges;
 
-
-use halo2_proofs::{circuit::SimpleFloorPlanner, plonk::{Circuit, Challenge}};
-
+use halo2_proofs::{
+    circuit::SimpleFloorPlanner,
+    plonk::{Challenge, Circuit},
+};
 
 impl<F: Field> Circuit<F> for BlobCircuit<F> {
     type Config = (BlobCircuitConfig<F>, Challenges<Challenge>);
@@ -37,7 +38,7 @@ impl<F: Field> Circuit<F> for BlobCircuit<F> {
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let challenges = config.1.values(&layouter);
-        
+
         self.synthesize_sub(&config.0, &challenges, &mut layouter)
     }
 }

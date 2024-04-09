@@ -5,13 +5,10 @@ use halo2_ecc::{
     fields::{fp::FpConfig, FieldChip},
     halo2_base::Context,
 };
-use halo2_proofs::{
-    circuit::Value,
-    halo2curves::bn256::Fr,
-};
+use halo2_proofs::{circuit::Value, halo2curves::bn256::Fr};
 
-use std::ops::{Add, Div, Mul, Sub};
 use bls12_381::Scalar;
+use std::ops::{Add, Div, Mul, Sub};
 
 #[derive(Clone)]
 pub enum ScalarFieldElement {
@@ -37,7 +34,11 @@ impl ScalarFieldElement {
         Self::Carry(Box::new(self))
     }
 
-    pub fn resolve<F:Field>(&self, ctx: &mut Context<F>, config: &FpConfig<F, Scalar>) -> CRTInteger<F> {
+    pub fn resolve<F: Field>(
+        &self,
+        ctx: &mut Context<F>,
+        config: &FpConfig<F, Scalar>,
+    ) -> CRTInteger<F> {
         match self {
             Self::Constant(x) => config.load_constant(ctx, fe_to_biguint(x)),
             Self::Private(x) => config.load_private(ctx, Value::known(fe_to_biguint(x).into())),
