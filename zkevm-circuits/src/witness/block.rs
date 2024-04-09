@@ -504,7 +504,7 @@ pub fn block_convert<F: Field>(
     let withdraw_root_entry = mpt_updates.get(&super::rw::Rw::AccountStorage {
         tx_id: total_tx_as_txid,
         account_address: *bus_mapping::l2_predeployed::message_queue::ADDRESS,
-        storage_key: bus_mapping::l2_predeployed::message_queue::WITHDRAW_TRIE_ROOT_SLOT,
+        storage_key: *bus_mapping::l2_predeployed::message_queue::WITHDRAW_TRIE_ROOT_SLOT,
         // following field is not used in Mpt::Key so we just fill them arbitrarily
         rw_counter: 0,
         is_write: false,
