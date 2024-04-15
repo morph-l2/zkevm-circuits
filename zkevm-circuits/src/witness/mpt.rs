@@ -202,7 +202,7 @@ impl MptUpdates {
         if gen_withdraw_proof {
             // generate withdraw proof
             let address = *bus_mapping::l2_predeployed::message_queue::ADDRESS;
-            let key = bus_mapping::l2_predeployed::message_queue::WITHDRAW_TRIE_ROOT_SLOT;
+            let key = *bus_mapping::l2_predeployed::message_queue::WITHDRAW_TRIE_ROOT_SLOT;
             let account_proof = wit_gen.account_proof(address);
             let storage_proof = wit_gen.storage_proof(address, key);
             // TODO: add withdraw_root to WithdrawProof?
