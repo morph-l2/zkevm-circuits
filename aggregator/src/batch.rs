@@ -150,11 +150,23 @@ impl BatchHash {
         .concat();
         let public_input_hash: H256 = keccak256(preimage).into();
         log::info!(
-            "batch pihash {:?}, datahash {}, z {} y {}",
+            "batch pihash {:?}, prev_state_root {},post_state_root {},withdraw_root {}, datahash {}, z {} y {}, versioned_hash {:?}",
             public_input_hash,
+            hex::encode(chunks_with_padding[0].prev_state_root.as_bytes()),
+            hex::encode(
+                chunks_with_padding[MAX_AGG_SNARKS - 1]
+                    .post_state_root
+                    .as_bytes()
+            ),
+            hex::encode(
+                chunks_with_padding[MAX_AGG_SNARKS - 1]
+                    .withdraw_root
+                    .as_bytes()
+            ),
             hex::encode(batch_data_hash),
             hex::encode(blob_assignments.challenge.to_be_bytes()),
-            hex::encode(blob_assignments.evaluation.to_be_bytes())
+            hex::encode(blob_assignments.evaluation.to_be_bytes()),
+            versioned_hash
         );
 
         Self {
