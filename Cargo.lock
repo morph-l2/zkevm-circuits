@@ -599,6 +599,7 @@ dependencies = [
  "mock",
  "mpt-zktrie",
  "num",
+ "once_cell",
  "poseidon-circuit",
  "pretty_assertions",
  "rand",

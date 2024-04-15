@@ -1,6 +1,7 @@
 //! l2 predeployed contract helpers
 
 use eth_types::Address;
+use once_cell::sync::Lazy;
 
 /// helper for L2MessageQueue contract
 pub mod message_queue {
@@ -12,7 +13,7 @@ pub mod message_queue {
     pub static ADDRESS: LazyLock<Address> =
         LazyLock::new(|| Address::from_str("0x5300000000000000000000000000000000000001").unwrap());
     /// the slot of withdraw root in L2MessageQueue
-    pub static WITHDRAW_TRIE_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(45));
+    pub static WITHDRAW_TRIE_ROOT_SLOT: Lazy<U256> = Lazy::new(|| U256::from(45));
 }
 
 /// Helper for L1GasPriceOracle contract
