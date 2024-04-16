@@ -12,7 +12,7 @@ pub mod message_queue {
     pub static ADDRESS: LazyLock<Address> =
         LazyLock::new(|| Address::from_str("0x5300000000000000000000000000000000000001").unwrap());
     /// the slot of withdraw root in L2MessageQueue
-    pub static WITHDRAW_TRIE_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(45));
+    pub static WITHDRAW_TRIE_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(33));
 }
 
 /// Helper for L1GasPriceOracle contract
