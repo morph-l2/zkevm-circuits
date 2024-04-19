@@ -17,7 +17,7 @@ use once_cell::sync::Lazy;
 use revm_primitives::VERSIONED_HASH_VERSION_KZG;
 use std::{
     iter::{once, repeat},
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 use zkevm_circuits::util::Challenges;
 
@@ -74,6 +74,14 @@ pub static KZG_TRUSTED_SETUP: Lazy<Arc<c_kzg::KzgSettings>> = Lazy::new(|| {
             &revm_primitives::kzg::G2_POINTS.0,
         )
         .expect("failed to load trusted setup"),
+    )
+});
+
+pub static ZERO_VERSIONED_HASH: LazyLock<H256> = LazyLock::new(|| {
+    H256::from_slice(
+        hex::decode("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
+            .unwrap()
+            .as_slice(),
     )
 });
 
@@ -196,6 +204,19 @@ impl BlobData {
 impl BlobData {
     /// Get the versioned hash as per EIP-4844.
     pub(crate) fn get_versioned_hash(&self) -> H256 {
+        
+        let mut is_empty_blob: bool = true;
+        for chunk in &self.chunk_data {
+            if !chunk.is_empty() {
+                is_empty_blob = false;
+            }
+        }
+        log::info!("is_empty_blob: {:?}", is_empty_blob);
+        if is_empty_blob {
+            // Be consistent with the contract value on the chain
+            return *ZERO_VERSIONED_HASH;
+        }
+
         let coefficients = self.get_coefficients();
         let blob = c_kzg::Blob::from_bytes(
             &coefficients
