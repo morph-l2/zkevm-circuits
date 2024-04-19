@@ -1,6 +1,8 @@
 //! This module implements related functions that aggregates public inputs of many chunks into a
 //! single one.
 
+use std::sync::LazyLock;
+
 use eth_types::{Field, ToBigEndian, H256};
 use ethers_core::utils::keccak256;
 
@@ -39,6 +41,14 @@ pub struct BatchHash {
     /// The 4844 versioned hash for the blob.
     pub(crate) versioned_hash: H256,
 }
+
+static ZERO_VERSIONED_HASH: LazyLock<H256> = LazyLock::new(|| {
+    H256::from_slice(
+        hex::decode("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
+            .unwrap()
+            .as_slice(),
+    )
+});
 
 impl BatchHash {
     /// Build Batch hash from an ordered list of #MAX_AGG_SNARKS of chunks.
@@ -120,7 +130,19 @@ impl BatchHash {
 
         let blob_data = BlobData::new(number_of_valid_chunks, chunks_with_padding);
         let blob_assignments = BlobAssignments::from(&blob_data);
-        let versioned_hash = blob_data.get_versioned_hash();
+        let mut versioned_hash = blob_data.get_versioned_hash();
+
+        let mut is_empty_blob: bool = true;
+        for chunk_hash in chunks_with_padding {
+            if !chunk_hash.tx_bytes.is_empty() {
+                is_empty_blob = false;
+            }
+        }
+
+        if is_empty_blob {
+            // Be consistent with the contract value on the chain
+            versioned_hash = *ZERO_VERSIONED_HASH
+        }
 
         // public input hash is build as
         // keccak(
