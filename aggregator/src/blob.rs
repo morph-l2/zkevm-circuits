@@ -79,7 +79,7 @@ pub static KZG_TRUSTED_SETUP: Lazy<Arc<c_kzg::KzgSettings>> = Lazy::new(|| {
 
 pub static ZERO_VERSIONED_HASH: LazyLock<H256> = LazyLock::new(|| {
     H256::from_slice(
-        hex::decode("0x010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
+        hex::decode("010657f37554c781402a22917dee2f75def7ab966d7b770905398eba3c444014")
             .unwrap()
             .as_slice(),
     )
