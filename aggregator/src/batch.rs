@@ -121,6 +121,7 @@ impl BatchHash {
         let blob_data = BlobData::new(number_of_valid_chunks, chunks_with_padding);
         let blob_assignments = BlobAssignments::from(&blob_data);
         let versioned_hash = blob_data.get_versioned_hash();
+        log::debug!("=>blob_versioned_hash: {:?}", versioned_hash);
 
         // public input hash is build as
         // keccak(
