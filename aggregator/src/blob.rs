@@ -45,8 +45,8 @@ pub const N_ROWS_CHUNK_SIZES: usize = MAX_AGG_SNARKS * 4;
 pub const N_BLOB_BYTES: usize = BLOB_WIDTH * N_DATA_BYTES_PER_COEFFICIENT;
 
 /// The number of rows in Blob Data config's layout to represent the "blob metadata" section.
-pub const N_ROWS_METADATA: usize = N_ROWS_NUM_CHUNKS + N_ROWS_CHUNK_SIZES;
-
+// pub const N_ROWS_METADATA: usize = N_ROWS_NUM_CHUNKS + N_ROWS_CHUNK_SIZES;
+pub const N_ROWS_METADATA: usize = N_ROWS_CHUNK_SIZES;
 /// The number of rows in Blob Data config's layout to represent the "chunk data" section.
 pub const N_ROWS_DATA: usize = N_BLOB_BYTES - N_ROWS_METADATA;
 
@@ -313,20 +313,21 @@ impl BlobData {
             .iter()
             .flat_map(|&chunk_size| chunk_size.to_be_bytes())
             .collect()
+        
     }
 
     /// Get the witness rows for the "metadata" section of Blob data config.
     fn to_metadata_rows(&self, challenge: Challenges<Value<Fr>>) -> Vec<BlobDataRow<Fr>> {
         // metadata bytes.
         let bytes = self.to_metadata_bytes();
-
+        assert_eq!(bytes.len(), N_ROWS_METADATA);
         // accumulators represent the runnin linear combination of bytes.
         let accumulators_iter = self.chunk_sizes.into_iter().flat_map(|chunk_size| {
                 chunk_size.to_be_bytes().into_iter().scan(0u64, |acc, x| {
                     *acc = *acc * 256 + (x as u64);
                     Some(*acc)
                 })});
-
+        assert_eq!(accumulators_iter.clone().count(), N_ROWS_METADATA);
         // digest_rlc is set only for the last row in the "metadata" section, and it denotes the
         // RLC of the metadata_digest bytes.
         let digest_rlc_iter = {
@@ -338,13 +339,13 @@ impl BlobData {
                 .take(N_ROWS_METADATA - 1)
                 .chain(once(digest_rlc))
         };
-
+        assert_eq!(digest_rlc_iter.clone().count(), N_ROWS_METADATA);
         // preimage_rlc is the running RLC over bytes in the "metadata" section.
         let preimage_rlc_iter = bytes.iter().scan(Value::known(Fr::zero()), |acc, &x| {
             *acc = *acc * challenge.keccak_input() + Value::known(Fr::from(x as u64));
             Some(*acc)
         });
-
+        assert_eq!(preimage_rlc_iter.clone().count(), 60);
         bytes
             .iter()
             .zip_eq(accumulators_iter)
@@ -695,6 +696,27 @@ mod tests {
                 default_metadata_digest
                     .into_iter()
                     .chain(default_chunk_digests.into_iter().flatten())
+                    .chain(versioned_hash.to_fixed_bytes())
+                    .collect::<Vec<u8>>()
+            )),
+        )
+    }
+
+    #[test]
+    fn empty_blob_data() {
+        let empty_metadata = [0u8; 60];
+        let empty_metadata_digest = keccak256(empty_metadata);
+        let empty_chunk_digests = [keccak256([]); MAX_AGG_SNARKS];
+
+        let empty_blob = BlobData::from(&vec![vec![];MAX_AGG_SNARKS]);
+        empty_blob.to_metadata_bytes();
+        let versioned_hash = empty_blob.get_versioned_hash();
+        assert_eq!(
+            empty_blob.get_challenge_digest(),
+            U256::from(keccak256(
+                empty_metadata_digest
+                    .into_iter()
+                    .chain(empty_chunk_digests.into_iter().flatten())
                     .chain(versioned_hash.to_fixed_bytes())
                     .collect::<Vec<u8>>()
             )),

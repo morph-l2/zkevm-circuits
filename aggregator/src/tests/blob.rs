@@ -280,6 +280,12 @@ fn blob_circuit_completeness() {
     }
 }
 
+#[test]
+fn empty_blob_circuit_completeness(){
+    let all_empty_chunks: Vec<Vec<u8>> = vec![vec![]; MAX_AGG_SNARKS];
+    assert_eq!(check_data(BlobData::from(&all_empty_chunks)), Ok(()), "{:?}", all_empty_chunks);
+}
+
 fn generic_blob_data() -> BlobData {
     BlobData::from(&vec![
         vec![3, 100, 24, 30],
