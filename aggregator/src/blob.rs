@@ -309,14 +309,9 @@ impl BlobData {
     /// - num_valid_chunks is u16
     /// - each chunk_size is u32
     fn to_metadata_bytes(&self) -> Vec<u8> {
-        self.num_valid_chunks
-            .to_be_bytes()
-            .into_iter()
-            .chain(
-                self.chunk_sizes
-                    .iter()
-                    .flat_map(|chunk_size| chunk_size.to_be_bytes()),
-            )
+        self.chunk_sizes
+            .iter()
+            .flat_map(|chunk_size| chunk_size.to_be_bytes())
             .collect()
     }
 
@@ -326,20 +321,12 @@ impl BlobData {
         let bytes = self.to_metadata_bytes();
 
         // accumulators represent the runnin linear combination of bytes.
-        let accumulators_iter = self
-            .num_valid_chunks
-            .to_be_bytes()
-            .into_iter()
-            .scan(0u64, |acc, x| {
+        let accumulators_iter = self.chunk_sizes.into_iter().flat_map(|chunk_size| {
+            chunk_size.to_be_bytes().into_iter().scan(0u64, |acc, x| {
                 *acc = *acc * 256 + (x as u64);
                 Some(*acc)
             })
-            .chain(self.chunk_sizes.into_iter().flat_map(|chunk_size| {
-                chunk_size.to_be_bytes().into_iter().scan(0u64, |acc, x| {
-                    *acc = *acc * 256 + (x as u64);
-                    Some(*acc)
-                })
-            }));
+        });
 
         // digest_rlc is set only for the last row in the "metadata" section, and it denotes the
         // RLC of the metadata_digest bytes.
