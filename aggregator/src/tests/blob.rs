@@ -89,9 +89,7 @@ impl Circuit<Fr> for BlobCircuit {
 
         BlobConfig {
             challenges,
-
             keccak_table,
-
             rlc,
             blob_data,
             barycentric,

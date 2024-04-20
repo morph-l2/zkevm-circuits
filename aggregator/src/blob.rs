@@ -300,7 +300,6 @@ impl BlobData {
     /// Get the blob bytes that encode the batch's metadata.
     ///
     /// metadata_bytes =
-    ///     be_bytes(num_valid_chunks) ||
     ///     be_bytes(chunks[0].chunk_size) || ...
     ///     be_bytes(chunks[MAX_AGG_SNARKS-1].chunk_size)
     ///
@@ -309,14 +308,10 @@ impl BlobData {
     /// - num_valid_chunks is u16
     /// - each chunk_size is u32
     fn to_metadata_bytes(&self) -> Vec<u8> {
-        self.num_valid_chunks
-            .to_be_bytes()
-            .into_iter()
-            .chain(
-                self.chunk_sizes
-                    .iter()
-                    .flat_map(|chunk_size| chunk_size.to_be_bytes()),
-            )
+        // metadata_bytes = be_bytes(chunks[0].chunk_size) || ... be_bytes(chunks[MAX_AGG_SNARKS-1].chunk_size)
+        self.chunk_sizes
+            .iter()
+            .flat_map(|&chunk_size| chunk_size.to_be_bytes())
             .collect()
     }
 
@@ -326,20 +321,11 @@ impl BlobData {
         let bytes = self.to_metadata_bytes();
 
         // accumulators represent the runnin linear combination of bytes.
-        let accumulators_iter = self
-            .num_valid_chunks
-            .to_be_bytes()
-            .into_iter()
-            .scan(0u64, |acc, x| {
-                *acc = *acc * 256 + (x as u64);
-                Some(*acc)
-            })
-            .chain(self.chunk_sizes.into_iter().flat_map(|chunk_size| {
+        let accumulators_iter = self.chunk_sizes.into_iter().flat_map(|chunk_size| {
                 chunk_size.to_be_bytes().into_iter().scan(0u64, |acc, x| {
                     *acc = *acc * 256 + (x as u64);
                     Some(*acc)
-                })
-            }));
+                })});
 
         // digest_rlc is set only for the last row in the "metadata" section, and it denotes the
         // RLC of the metadata_digest bytes.
@@ -696,12 +682,12 @@ mod tests {
 
     #[test]
     fn default_blob_data() {
-        let mut default_metadata = [0u8; 62];
-        default_metadata[1] = 1;
+        let default_metadata = [0u8; 60];
         let default_metadata_digest = keccak256(default_metadata);
         let default_chunk_digests = [keccak256([]); MAX_AGG_SNARKS];
 
         let default_blob = BlobData::default();
+        default_blob.to_metadata_bytes();
         let versioned_hash = default_blob.get_versioned_hash();
         assert_eq!(
             default_blob.get_challenge_digest(),
