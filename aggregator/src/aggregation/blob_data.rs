@@ -58,7 +58,7 @@ pub struct BlobDataConfig {
 }
 
 pub struct AssignedBlobDataExport {
-    pub num_valid_chunks: AssignedCell<Fr, Fr>,
+    // pub num_valid_chunks: AssignedCell<Fr, Fr>,
     pub versioned_hash: Vec<AssignedCell<Fr, Fr>>,
     pub chunk_data_digests: Vec<Vec<AssignedCell<Fr, Fr>>>,
 }
@@ -561,21 +561,21 @@ impl BlobDataConfig {
         /////////////////////////////// NUM_VALID_CHUNKS ///////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
 
-        let rows = assigned_rows.iter().take(2).collect::<Vec<_>>();
-        let (byte_hi, byte_lo, lc1, lc2) = (
-            &rows[0].byte,
-            &rows[1].byte,
-            &rows[0].accumulator,
-            &rows[1].accumulator,
-        );
+        // let rows = assigned_rows.iter().take(2).collect::<Vec<_>>();
+        // let (byte_hi, byte_lo, lc1, lc2) = (
+        //     &rows[0].byte,
+        //     &rows[1].byte,
+        //     &rows[0].accumulator,
+        //     &rows[1].accumulator,
+        // );
 
-        // the linear combination starts with the most-significant byte.
-        region.constrain_equal(byte_hi.cell(), lc1.cell())?;
+        // // the linear combination starts with the most-significant byte.
+        // region.constrain_equal(byte_hi.cell(), lc1.cell())?;
 
-        // do the linear combination.
-        let num_valid_chunks =
-            rlc_config.mul_add(region, lc1, &two_fifty_six, byte_lo, &mut rlc_config_offset)?;
-        region.constrain_equal(num_valid_chunks.cell(), lc2.cell())?;
+        // // do the linear combination.
+        // let num_valid_chunks =
+        //     rlc_config.mul_add(region, lc1, &two_fifty_six, byte_lo, &mut rlc_config_offset)?;
+        // region.constrain_equal(num_valid_chunks.cell(), lc2.cell())?;
 
         ////////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////// CHUNK_SIZE //////////////////////////////////
@@ -587,7 +587,7 @@ impl BlobDataConfig {
         for (i, is_padded_chunk) in chunks_are_padding.iter().enumerate() {
             let rows = assigned_rows
                 .iter()
-                .skip(2 + 4 * i)
+                .skip(4 * i)
                 .take(4)
                 .collect::<Vec<_>>();
             let (byte0, byte1, byte2, byte3) =
@@ -894,7 +894,7 @@ impl BlobDataConfig {
             .map(|row| row.byte.clone())
             .collect::<Vec<AssignedCell<Fr, Fr>>>();
         let export = AssignedBlobDataExport {
-            num_valid_chunks,
+            // num_valid_chunks,
             versioned_hash: assigned_rows
                 .iter()
                 .rev()

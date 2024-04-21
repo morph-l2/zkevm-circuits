@@ -447,10 +447,10 @@ impl Circuit<Fr> for AggregationCircuit {
             layouter.assign_region(
                 || "blob checks",
                 |mut region| -> Result<(), Error> {
-                    region.constrain_equal(
-                        assigned_batch_hash.num_valid_snarks.cell(),
-                        blob_data_exports.num_valid_chunks.cell(),
-                    )?;
+                    // region.constrain_equal(
+                    //     assigned_batch_hash.num_valid_snarks.cell(),
+                    //     blob_data_exports.num_valid_chunks.cell(),
+                    // )?;
 
                     for (chunk_data_digest, expected_chunk_data_digest) in blob_data_exports
                         .chunk_data_digests

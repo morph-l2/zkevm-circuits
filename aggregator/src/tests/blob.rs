@@ -193,9 +193,6 @@ impl Circuit<Fr> for BlobCircuit {
                 if let Some(i) = self.overwrite_is_padding {
                     increment_cell(&mut region, &assigned_rows[i].is_padding)?;
                 }
-                if self.overwrite_num_valid_chunks {
-                    increment_cell(&mut region, &assigned_blob_data_export.num_valid_chunks)?;
-                }
                 if let Some(i) = self.overwrite_challenge_digest {
                     increment_cell(
                         &mut region,
@@ -284,6 +281,12 @@ fn blob_circuit_completeness() {
 fn empty_blob_circuit_completeness(){
     let all_empty_chunks: Vec<Vec<u8>> = vec![vec![]; MAX_AGG_SNARKS];
     assert_eq!(check_data(BlobData::from(&all_empty_chunks)), Ok(()), "{:?}", all_empty_chunks);
+}
+
+#[test]
+fn single_full_blob_circuit_completeness(){
+    let single_full_blob: Vec<Vec<u8>> = vec![vec![123; N_ROWS_DATA]];
+    assert_eq!(check_data(BlobData::from(&single_full_blob)), Ok(()), "{:?}", single_full_blob);
 }
 
 fn generic_blob_data() -> BlobData {
