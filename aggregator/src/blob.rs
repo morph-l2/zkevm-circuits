@@ -261,7 +261,7 @@ impl BlobData {
     /// eventually required to be checked for the consistency of blob's metadata, its chunks' bytes
     /// and the final blob preimage.
     pub fn preimages(&self) -> Vec<Vec<u8>> {
-        let mut preimages = Vec::with_capacity(2 + MAX_AGG_SNARKS);
+        let mut preimages = Vec::with_capacity(MAX_AGG_SNARKS);
 
         // metadata
         preimages.push(self.to_metadata_bytes());
@@ -313,7 +313,6 @@ impl BlobData {
             .iter()
             .flat_map(|&chunk_size| chunk_size.to_be_bytes())
             .collect()
-        
     }
 
     /// Get the witness rows for the "metadata" section of Blob data config.
