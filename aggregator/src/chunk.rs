@@ -25,6 +25,8 @@ pub struct ChunkHash {
     pub post_state_root: H256,
     /// the withdraw root after this chunk
     pub withdraw_root: H256,
+    /// the sequencer root after this chunk
+    pub sequencer_root: H256,
     /// the data hash of this chunk
     pub data_hash: H256,
     /// Flattened L2 tx bytes (RLP-signed) in this chunk.
@@ -110,6 +112,7 @@ impl ChunkHash {
             prev_state_root: H256(block.prev_state_root.to_be_bytes()),
             post_state_root,
             withdraw_root: H256(block.withdraw_root.to_be_bytes()),
+            sequencer_root: H256(block.sequencer_root.to_be_bytes()),
             data_hash,
             tx_bytes: tx_bytes.to_vec(),
             is_padding,
@@ -125,12 +128,16 @@ impl ChunkHash {
     /// Sample a chunk hash from random (for testing)
     #[cfg(test)]
     pub(crate) fn mock_random_chunk_hash_for_testing<R: rand::RngCore>(r: &mut R) -> Self {
+        use ethers_core::k256::elliptic_curve::generic_array::sequence;
+
         let mut prev_state_root = [0u8; 32];
         r.fill_bytes(&mut prev_state_root);
         let mut post_state_root = [0u8; 32];
         r.fill_bytes(&mut post_state_root);
         let mut withdraw_root = [0u8; 32];
         r.fill_bytes(&mut withdraw_root);
+        let mut sequencer_root = [0u8; 32];
+        r.fill_bytes(&mut sequencer_root);
         let mut data_hash = [0u8; 32];
         r.fill_bytes(&mut data_hash);
         let mut tx_bytes = [0u8; 1024];
@@ -140,6 +147,7 @@ impl ChunkHash {
             prev_state_root: prev_state_root.into(),
             post_state_root: post_state_root.into(),
             withdraw_root: withdraw_root.into(),
+            sequencer_root: sequencer_root.into(),
             data_hash: data_hash.into(),
             tx_bytes: tx_bytes.to_vec(),
             is_padding: false,
@@ -158,6 +166,7 @@ impl ChunkHash {
             prev_state_root: previous_chunk.prev_state_root,
             post_state_root: previous_chunk.post_state_root,
             withdraw_root: previous_chunk.withdraw_root,
+            sequencer_root: previous_chunk.sequencer_root,
             data_hash: previous_chunk.data_hash,
             tx_bytes: previous_chunk.tx_bytes.clone(),
             is_padding: true,
@@ -194,6 +203,7 @@ impl ChunkHash {
             self.prev_state_root.as_bytes(),
             self.post_state_root.as_bytes(),
             self.withdraw_root.as_bytes(),
+            self.sequencer_root.as_bytes(),
             self.data_hash.as_bytes(),
             self.tx_bytes_hash().as_bytes(),
         ]

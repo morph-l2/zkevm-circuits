@@ -190,6 +190,10 @@ pub struct Block {
     pub withdraw_root: Word,
     /// Withdraw roof of the previous block
     pub prev_withdraw_root: Word,
+    /// Sequencer root
+    pub sequencer_root: Word,
+    /// Sequencer roof of the previous block
+    pub prev_sequencer_root: Word,
     /// Container of operations done in this block.
     pub container: OperationContainer,
     /// Transactions contained in the block

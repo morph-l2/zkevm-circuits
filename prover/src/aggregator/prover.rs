@@ -193,6 +193,7 @@ fn check_chunk_hashes(name: &str, chunk_hashes_proofs: &[(ChunkHash, ChunkProof)
             compare_field!(name, idx, prev_state_root, in_arg, in_proof);
             compare_field!(name, idx, post_state_root, in_arg, in_proof);
             compare_field!(name, idx, withdraw_root, in_arg, in_proof);
+            compare_field!(name, idx, sequencer_root, in_arg, in_proof);
             compare_field!(name, idx, data_hash, in_arg, in_proof);
         }
     }

@@ -24,7 +24,7 @@ Those 4 hashes are obtained from the caller.
 
 The chunk's public input hash is 
 ```
-chunk_pi_hash := keccak(chain_id || prev_state_root || post_state_root || withdraw_root ||  chunk_data_hash)
+chunk_pi_hash := keccak(chain_id || prev_state_root || post_state_root || withdraw_root ||  sequencer_root || chunk_data_hash)
 ```
 
 ## Continuous chunks
@@ -41,6 +41,7 @@ If $k< n$, $(n-k)$ padded chunks are padded to the list. A padded chunk has the 
 - state root before this chunk: `c_{k}.prev_state_root`
 - state root after this chunk: `c_{k}.post_state_root`
 - the withdraw root of this chunk: `c_{k}.withdraw_root`
+- the sequencer root of this chunk: `c_{k}.sequencer_root`
 - the data hash of this chunk: `c_{k}.data_hash`
 
 ## Batch
@@ -86,7 +87,7 @@ For snarks $s_1,\dots,s_k,\dots, s_n$ the aggregation circuit argues the followi
 
 2. batch_pi_hash used same roots as chunk_pi_hash. __Static__.
 ```
-batch_pi_hash   := keccak(chain_id || chunk_1.prev_state_root || chunk_n.post_state_root || chunk_n.withdraw_root || batch_data_hash)
+batch_pi_hash   := keccak(chain_id || chunk_1.prev_state_root || chunk_n.post_state_root || chunk_n.withdraw_root || chunk_n.sequencer_root || batch_data_hash)
 ```
 and `batch_pi_hash` matches public input.
 
@@ -94,7 +95,7 @@ and `batch_pi_hash` matches public input.
 
 ```
 for i in 1 ... n
-    chunk_pi_hash   := keccak(chain_id || prev_state_root || post_state_root || withdraw_root || chunk_data_hash)
+    chunk_pi_hash   := keccak(chain_id || prev_state_root || post_state_root || withdraw_root || sequencer_root || chunk_data_hash)
 ```
 
 This is done by computing the RLCs of chunk[i]'s data_hash for `i=0..k`, and then check the RLC matches the one from the keccak table.

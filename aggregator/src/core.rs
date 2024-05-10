@@ -42,7 +42,7 @@ use crate::{
         parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells,
     },
     AggregationConfig, RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, CHUNK_TX_DATA_HASH_INDEX, LIMBS,
-    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
+    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX, SEQUENCER_ROOT_INDEX,
 };
 
 /// Subroutine for the witness generations.
@@ -185,6 +185,7 @@ pub(crate) struct AssignedBatchHash {
 // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
 // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
 // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+// 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
 // 3. batch_data_hash and chunk[i].pi_hash use a same chunk[i].data_hash when chunk[i] is not padded
 // 4. chunks are continuous: they are linked via the state roots
 // 5. batch and all its chunks use a same chain id
@@ -213,6 +214,7 @@ pub(crate) fn assign_batch_hashes(
     // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
     // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
     // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+    // 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
     // 5. batch and all its chunks use a same chain id
     copy_constraints(layouter, &extracted_hash_cells.hash_input_cells)?;
 
@@ -275,6 +277,7 @@ pub(crate) fn extract_hash_cells(
     //      chunk[0].prev_state_root ||
     //      chunk[k-1].post_state_root ||
     //      chunk[k-1].withdraw_root ||
+    //      chunk[k-1].sequencer_root ||
     //      batch_data_hash ||
     //      z ||
     //      y)
@@ -391,6 +394,7 @@ pub(crate) fn extract_hash_cells(
 // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
 // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
 // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+// 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
 // 5. batch and all its chunks use a same chain id
 fn copy_constraints(
     layouter: &mut impl Layouter<Fr>,
@@ -431,6 +435,7 @@ fn copy_constraints(
                 //      chunk[0].prev_state_root ||
                 //      chunk[k-1].post_state_root ||
                 //      chunk[k-1].withdraw_root ||
+                //      chunk[k-1].sequencer_root ||
                 //      batch_data_hash ||
                 //      z ||
                 //      y
@@ -446,9 +451,9 @@ fn copy_constraints(
                 //        chunk[i].tx_data_hash
                 //   )
                 //
-                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX
+                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX, SEQUENCER_ROOT_INDEX
                 // used below are byte positions for
-                // prev_state_root, post_state_root, withdraw_root
+                // prev_state_root, post_state_root, withdraw_root, sequencer_root
                 for i in 0..DIGEST_LEN {
                     // 2.1 chunk[0].prev_state_root
                     // sanity check
@@ -499,6 +504,22 @@ fn copy_constraints(
                     region.constrain_equal(
                         batch_pi_hash_preimage[i + WITHDRAW_ROOT_INDEX].cell(),
                         chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + WITHDRAW_ROOT_INDEX].cell(),
+                    )?;
+                    // 2.4 chunk[k-1].sequencer_root
+                    assert_equal(
+                        &batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX],
+                        &chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX],
+                        format!(
+                            "chunk and batch's sequencer_root do not match: {:?} {:?}",
+                            &batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].value(),
+                            &chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX]
+                                .value(),
+                        )
+                        .as_str(),
+                    )?;
+                    region.constrain_equal(
+                        batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].cell(),
+                        chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX].cell(),
                     )?;
                 }
 
@@ -700,6 +721,7 @@ pub(crate) fn conditional_constraints(
                 //      chunk[0].prev_state_root ||
                 //      chunk[k-1].post_state_root ||
                 //      chunk[k-1].withdraw_root ||
+                //      chunk[k-1].sequencer_root ||
                 //      batch_data_hash ||
                 //      z ||
                 //      y

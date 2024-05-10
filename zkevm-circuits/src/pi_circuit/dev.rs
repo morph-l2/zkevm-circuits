@@ -30,6 +30,7 @@ impl<F: Field, const MAX_TXS: usize, const MAX_CALLDATA: usize, const MAX_INNER_
                 prev_state_root: H256::zero(),
                 next_state_root: H256::zero(),
                 withdraw_trie_root: H256::zero(),
+                sequencer_root: H256::zero(),
                 block_ctxs: Default::default(),
             },
             connections: Default::default(),
