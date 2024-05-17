@@ -177,7 +177,7 @@ impl ChunkHash {
     ///     prev state root ||
     ///     post state root ||
     ///     withdraw root ||
-    ///     sequencer root ||
+    ///     Sequencer root ||
     ///     chunk data hash ||
     ///     chunk txdata hash
     /// )

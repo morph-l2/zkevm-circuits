@@ -233,6 +233,7 @@ impl BatchHash {
         //     chunk[i].prevStateRoot ||
         //     chunk[i].postStateRoot ||
         //     chunk[i].withdrawRoot ||
+        //     chunk[i].sequencerRoot ||
         //     chunk[i].datahash ||
         //     chunk[i].tx_data_hash
         // )

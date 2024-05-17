@@ -9,7 +9,7 @@ pub(crate) const CHAIN_ID_LEN: usize = 8;
 /// Digest length
 pub(crate) const DIGEST_LEN: usize = 32;
 /// Input length per round
-pub(crate) const INPUT_LEN_PER_ROUND: usize = 136;
+pub(crate) const INPUT_LEN_PER_ROUND: usize = 168;
 
 // TODO(ZZ): update to the right degree
 pub(crate) const LOG_DEGREE: u32 = 19;
@@ -49,9 +49,9 @@ pub(crate) const CHUNK_TX_DATA_HASH_INDEX: usize = 168;
 // - y                  32 bytes
 // - versioned_hash     32 bytes
 
-pub(crate) const BATCH_Z_OFFSET: usize = 136;
-pub(crate) const BATCH_Y_OFFSET: usize = 168;
-pub(crate) const BATCH_VH_OFFSET: usize = 200;
+pub(crate) const BATCH_Z_OFFSET: usize = 168;
+pub(crate) const BATCH_Y_OFFSET: usize = 200;
+pub(crate) const BATCH_VH_OFFSET: usize = 232;
 
 // ================================
 // aggregator parameters

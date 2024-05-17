@@ -284,8 +284,8 @@ pub(crate) fn extract_hash_cells(
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
-    //      chunk[i].withdrawRoot || chunk[i].datahash ||
-    //      chunk[i].tx_data_hash)
+    //      chunk[i].withdrawRoot || chunk[i].withdrawRoot || 
+    //      chunk[i].sequencerRoot || chunk[i].tx_data_hash)
     // (3) batchDataHash preimage =
     //      (chunk[0].dataHash || ... || chunk[k-1].dataHash)
     // each part of the preimage is mapped to image by Keccak256
@@ -447,6 +447,7 @@ fn copy_constraints(
                 //        chunk[i].prevStateRoot ||
                 //        chunk[i].postStateRoot ||
                 //        chunk[i].withdrawRoot  ||
+                //        chunk[k-1].sequencer_root ||
                 //        chunk[i].datahash ||
                 //        chunk[i].tx_data_hash
                 //   )
