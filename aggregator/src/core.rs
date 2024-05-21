@@ -42,7 +42,7 @@ use crate::{
         parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells,
     },
     AggregationConfig, RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, CHUNK_TX_DATA_HASH_INDEX, LIMBS,
-    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX, SEQUENCER_ROOT_INDEX,
+    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, SEQUENCER_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
 };
 
 /// Subroutine for the witness generations.
@@ -284,7 +284,7 @@ pub(crate) fn extract_hash_cells(
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
-    //      chunk[i].withdrawRoot || chunk[i].withdrawRoot || 
+    //      chunk[i].withdrawRoot || chunk[i].withdrawRoot ||
     //      chunk[i].sequencerRoot || chunk[i].tx_data_hash)
     // (3) batchDataHash preimage =
     //      (chunk[0].dataHash || ... || chunk[k-1].dataHash)
@@ -452,8 +452,8 @@ fn copy_constraints(
                 //        chunk[i].tx_data_hash
                 //   )
                 //
-                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX, SEQUENCER_ROOT_INDEX
-                // used below are byte positions for
+                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
+                // SEQUENCER_ROOT_INDEX used below are byte positions for
                 // prev_state_root, post_state_root, withdraw_root, sequencer_root
                 for i in 0..DIGEST_LEN {
                     // 2.1 chunk[0].prev_state_root
@@ -520,7 +520,8 @@ fn copy_constraints(
                     )?;
                     region.constrain_equal(
                         batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].cell(),
-                        chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX].cell(),
+                        chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX]
+                            .cell(),
                     )?;
                 }
 
@@ -995,69 +996,69 @@ pub(crate) fn conditional_constraints(
                 // 8. batch data hash is correct w.r.t. its RLCs
                 // batchDataHash = keccak(chunk[0].dataHash || ... || chunk[k-1].dataHash)
                 let challenge_cell =
-                rlc_config.read_challenge1(&mut region, challenges, &mut offset)?;
+                    rlc_config.read_challenge1(&mut region, challenges, &mut offset)?;
 
                 let flags = chunk_is_valid_cells
-                .iter()
-                .flat_map(|cell| vec![cell; 32])
-                .cloned()
-                .collect::<Vec<_>>();
+                    .iter()
+                    .flat_map(|cell| vec![cell; 32])
+                    .cloned()
+                    .collect::<Vec<_>>();
 
                 let rlc_cell = rlc_config.rlc_with_flag(
-                &mut region,
-                potential_batch_data_hash_preimage[..DIGEST_LEN * MAX_AGG_SNARKS].as_ref(),
-                &challenge_cell,
-                &flags,
-                &mut offset,
+                    &mut region,
+                    potential_batch_data_hash_preimage[..DIGEST_LEN * MAX_AGG_SNARKS].as_ref(),
+                    &challenge_cell,
+                    &flags,
+                    &mut offset,
                 )?;
 
                 assert_exist(
-                &rlc_cell,
-                &[
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].clone(),
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].clone(),
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].clone(),
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 6].clone(),
-                ],
+                    &rlc_cell,
+                    &[
+                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].clone(),
+                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].clone(),
+                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].clone(),
+                        data_rlc_cells[MAX_AGG_SNARKS * 2 + 6].clone(),
+                    ],
                 )?;
                 log::trace!("rlc from chip {:?}", rlc_cell.value());
                 log::trace!(
-                "rlc from table {:?}",
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].value()
+                    "rlc from table {:?}",
+                    data_rlc_cells[MAX_AGG_SNARKS * 2 + 3].value()
                 );
                 log::trace!(
-                "rlc from table {:?}",
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].value()
+                    "rlc from table {:?}",
+                    data_rlc_cells[MAX_AGG_SNARKS * 2 + 4].value()
                 );
                 log::trace!(
-                "rlc from table {:?}",
-                data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].value()
+                    "rlc from table {:?}",
+                    data_rlc_cells[MAX_AGG_SNARKS * 2 + 5].value()
                 );
 
                 // assertion
                 let t1 = rlc_config.sub(
-                &mut region,
-                &rlc_cell,
-                &data_rlc_cells[MAX_AGG_SNARKS * 2 + 3],
-                &mut offset,
+                    &mut region,
+                    &rlc_cell,
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 3],
+                    &mut offset,
                 )?;
                 let t2 = rlc_config.sub(
-                &mut region,
-                &rlc_cell,
-                &data_rlc_cells[MAX_AGG_SNARKS * 2 + 4],
-                &mut offset,
+                    &mut region,
+                    &rlc_cell,
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 4],
+                    &mut offset,
                 )?;
                 let t3 = rlc_config.sub(
-                &mut region,
-                &rlc_cell,
-                &data_rlc_cells[MAX_AGG_SNARKS * 2 + 5],
-                &mut offset,
+                    &mut region,
+                    &rlc_cell,
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 5],
+                    &mut offset,
                 )?;
                 let t4 = rlc_config.sub(
-                &mut region,
-                &rlc_cell,
-                &data_rlc_cells[MAX_AGG_SNARKS * 2 + 6],
-                &mut offset,
+                    &mut region,
+                    &rlc_cell,
+                    &data_rlc_cells[MAX_AGG_SNARKS * 2 + 6],
+                    &mut offset,
                 )?;
                 let t1t2 = rlc_config.mul(&mut region, &t1, &t2, &mut offset)?;
                 let t1t2t3 = rlc_config.mul(&mut region, &t1t2, &t3, &mut offset)?;
@@ -1093,23 +1094,23 @@ pub(crate) fn conditional_constraints(
 
                 // first MAX_AGG_SNARKS + 1 keccak
                 for mut chunk in is_final_cells
-                .iter()
-                .skip(1)
-                .take((MAX_AGG_SNARKS + 1) * 2)
-                .chunks(2)
-                .into_iter()
+                    .iter()
+                    .skip(1)
+                    .take((MAX_AGG_SNARKS + 1) * 2)
+                    .chunks(2)
+                    .into_iter()
                 {
                     // first round
-                let first_round_cell = chunk.next().unwrap();
-                let second_round_cell = chunk.next().unwrap();
-                region.constrain_equal(
-                first_round_cell.cell(),
-                rlc_config.zero_cell(first_round_cell.cell().region_index),
-                )?;
-                region.constrain_equal(
-                second_round_cell.cell(),
-                rlc_config.one_cell(second_round_cell.cell().region_index),
-                )?;
+                    let first_round_cell = chunk.next().unwrap();
+                    let second_round_cell = chunk.next().unwrap();
+                    region.constrain_equal(
+                        first_round_cell.cell(),
+                        rlc_config.zero_cell(first_round_cell.cell().region_index),
+                    )?;
+                    region.constrain_equal(
+                        second_round_cell.cell(),
+                        rlc_config.one_cell(second_round_cell.cell().region_index),
+                    )?;
                 }
                 // last keccak
                 // we constrain a * flag1 + b * flag2 + c * flag3 + d * flag4 == 1
