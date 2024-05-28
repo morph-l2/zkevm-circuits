@@ -7,7 +7,7 @@ use halo2_proofs::{
 use std::{collections::HashMap, sync::LazyLock};
 
 // Step dimension
-pub(crate) const STEP_WIDTH: usize = 145;
+pub(crate) const STEP_WIDTH: usize = 146;
 /// Step height
 pub const MAX_STEP_HEIGHT: usize = 21;
 /// The height of the state of a step, used by gates that connect two
@@ -16,7 +16,7 @@ pub const MAX_STEP_HEIGHT: usize = 21;
 pub(crate) const STEP_STATE_HEIGHT: usize = 1;
 
 /// Number of Advice Phase2 columns in the EVM circuit
-pub(crate) const N_PHASE2_COLUMNS: usize = 8;
+pub(crate) const N_PHASE2_COLUMNS: usize = 9;
 
 /// Number of Advice Phase1 columns in the EVM circuit
 pub(crate) const N_PHASE1_COLUMNS: usize =
