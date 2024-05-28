@@ -225,6 +225,7 @@ impl PublicData {
             .chain(self.prev_state_root.to_fixed_bytes())
             .chain(self.next_state_root.to_fixed_bytes())
             .chain(self.withdraw_trie_root.to_fixed_bytes())
+            .chain(self.sequencer_root.to_fixed_bytes())
             // data hash
             .chain(data_hash.to_fixed_bytes())
             .chain(chunk_txbytes_hash.to_fixed_bytes())
@@ -312,7 +313,7 @@ impl PublicData {
     }
 
     fn pi_bytes_end_offset(&self) -> usize {
-        self.pi_bytes_start_offset() + N_BYTES_U64 + N_BYTES_WORD * 5
+        self.pi_bytes_start_offset() + N_BYTES_U64 + N_BYTES_WORD * 6
     }
 
     fn pi_hash_start_offset(&self) -> usize {

@@ -85,7 +85,7 @@ fn empty_block() -> Block<Fr> {
     }
 }
 
-#[cfg(feature = "scroll")]
+// #[cfg(feature = "scroll")]
 #[test]
 fn serial_test_simple_pi() {
     const MAX_TXS: usize = 4;
@@ -98,7 +98,7 @@ fn serial_test_simple_pi() {
     set_var("COINBASE", "0x0000000000000000000000000000000000000000");
 
     let block = block_1tx();
-
+    
     let k = 16;
     assert_eq!(
         run::<Fr, MAX_TXS, MAX_CALLDATA, MAX_INNER_BLOCKS>(k, block),
