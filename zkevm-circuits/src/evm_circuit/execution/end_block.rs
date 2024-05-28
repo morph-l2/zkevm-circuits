@@ -84,10 +84,10 @@ impl<F: Field> ExecutionGadget<F> for EndBlockGadget<F> {
             IsZeroGadget::construct(cb, cb.curr.state.rw_counter.clone().expr() - 1.expr());
         // If the block is empty, we do 0 rw_table lookups
         // If the block is not empty, we will do 1 call_context lookup
-        // and add 1 withdraw_root lookup
+        // and add 1 withdraw_root lookup  add 1 sequencer_root lookup
         let total_rws = not::expr(is_empty_block.expr())
             * (cb.curr.state.rw_counter.clone().expr() - 1.expr() + 1.expr())
-            + 1.expr();
+            + 2.expr();
 
         // 1. Constraint total_rws and total_txs witness values depending on the empty
         // block case.
