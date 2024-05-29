@@ -39,7 +39,7 @@ pub mod l2_sequencer_set {
 
     /// address of L2SequencerSet predeploy
     pub static ADDRESS: LazyLock<Address> =
-        LazyLock::new(|| Address::from_str("0x5300000000000000000000000000000000000001").unwrap());
+        LazyLock::new(|| Address::from_str("0x5300000000000000000000000000000000000017").unwrap());
     /// the slot of sequencer root in L2SequencerSet
-    pub static SEQUENCER_SET_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(33));
+    pub static SEQUENCER_SET_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(101));
 }
