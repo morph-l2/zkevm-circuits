@@ -89,6 +89,8 @@ pub struct PublicData {
     pub next_state_root: Hash,
     /// Withdraw Trie Root
     pub withdraw_trie_root: Hash,
+    /// Sequence Set Root
+    pub sequencer_root: Hash,
     /// Max number of supported transactions
     pub max_txs: usize,
     /// Max number of supported calldata bytes
@@ -223,6 +225,7 @@ impl PublicData {
             .chain(self.prev_state_root.to_fixed_bytes())
             .chain(self.next_state_root.to_fixed_bytes())
             .chain(self.withdraw_trie_root.to_fixed_bytes())
+            .chain(self.sequencer_root.to_fixed_bytes())
             // data hash
             .chain(data_hash.to_fixed_bytes())
             .chain(chunk_txbytes_hash.to_fixed_bytes())
@@ -310,7 +313,7 @@ impl PublicData {
     }
 
     fn pi_bytes_end_offset(&self) -> usize {
-        self.pi_bytes_start_offset() + N_BYTES_U64 + N_BYTES_WORD * 5
+        self.pi_bytes_start_offset() + N_BYTES_U64 + N_BYTES_WORD * 6
     }
 
     fn pi_hash_start_offset(&self) -> usize {
@@ -668,6 +671,7 @@ impl<F: Field> SubCircuitConfig<F> for PiCircuitConfig<F> {
         // prev_state_root  |   ..    |     ..    |      ...      |     ...     |      ...       |
         // after_state_root |   ..    |     ..    |      ...      |     ...     |      ...       |
         // withdraw_root    |   ..    |     ..    |      ...      |     ...     |      ...       |
+        // sequencer_root   |   ..    |     ..    |      ...      |     ...     |      ...       |
         // data hash        |  dh_rlc |     ..    |      ...      |  pi_bs_rlc  |      136       |
         // q_keccak = 1     |pi_bs_rlc|     ..    |      ...      | pi_hash_rlc |      136       |
         //   pi hash        |   hi    |     ..    |      ...      |     ...     |       16       |
@@ -789,6 +793,7 @@ struct Connections<F: Field> {
     start_state_root: AssignedCell<F, F>,
     end_state_root: AssignedCell<F, F>,
     withdraw_root: AssignedCell<F, F>,
+    sequencer_root: AssignedCell<F, F>,
 }
 
 impl<F: Field> PiCircuitConfig<F> {
@@ -1185,6 +1190,7 @@ impl<F: Field> PiCircuitConfig<F> {
             public_data.prev_state_root.to_fixed_bytes().to_vec(),
             public_data.next_state_root.to_fixed_bytes().to_vec(),
             public_data.withdraw_trie_root.to_fixed_bytes().to_vec(),
+            public_data.sequencer_root.to_fixed_bytes().to_vec(),
         ]
         .iter()
         .map(|value_be_bytes| {
@@ -1221,6 +1227,7 @@ impl<F: Field> PiCircuitConfig<F> {
             start_state_root: rpi_cells[1].clone(),
             end_state_root: rpi_cells[2].clone(),
             withdraw_root: rpi_cells[3].clone(),
+            sequencer_root: rpi_cells[4].clone(),
         };
 
         // Assign data_hash
@@ -1810,6 +1817,7 @@ impl<F: Field> PiCircuit<F> {
             prev_state_root: H256(block.mpt_updates.old_root().to_be_bytes()),
             next_state_root,
             withdraw_trie_root: H256(block.withdraw_root.to_be_bytes()),
+            sequencer_root: H256(block.sequencer_root.to_be_bytes()),
         };
 
         Self {
@@ -1874,6 +1882,20 @@ impl<F: Field> PiCircuit<F> {
                     region.constrain_equal(
                         local_conn.withdraw_root.cell(),
                         withdraw_roots.withdraw_root.0,
+                    )?;
+                } else {
+                    log::warn!("withdraw roots are not set, skip connection with evm circuit");
+                }
+
+                if let Some(withdraw_roots) = withdraw_roots {
+                    log::debug!(
+                        "constrain_equal of sequencer root: {:?} <-> {:?}",
+                        &local_conn.sequencer_root,
+                        &withdraw_roots.sequencer_root
+                    );
+                    region.constrain_equal(
+                        local_conn.sequencer_root.cell(),
+                        withdraw_roots.sequencer_root.0,
                     )?;
                 } else {
                     log::warn!("withdraw roots are not set, skip connection with evm circuit");

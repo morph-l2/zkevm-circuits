@@ -91,6 +91,8 @@ pub struct EvmCircuitConfigArgs<F: Field> {
 pub struct EvmCircuitExports<V> {
     /// withdraw root
     pub withdraw_root: (Cell, Value<V>),
+    /// sequencer root
+    pub sequencer_root: (Cell, Value<V>),
 }
 
 impl<F: Field> SubCircuitConfig<F> for EvmCircuitConfig<F> {

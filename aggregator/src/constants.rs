@@ -23,14 +23,16 @@ pub(crate) const LOG_DEGREE: u32 = 19;
 // - prev_state_root    32 bytes
 // - post_state_root    32 bytes
 // - withdraw_root      32 bytes
+// - sequencer_root     32 bytes
 // - chunk_data_hash    32 bytes
 // - chunk_tx_data_hash 32 bytes
 
 pub(crate) const PREV_STATE_ROOT_INDEX: usize = 8;
 pub(crate) const POST_STATE_ROOT_INDEX: usize = 40;
 pub(crate) const WITHDRAW_ROOT_INDEX: usize = 72;
-pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 104;
-pub(crate) const CHUNK_TX_DATA_HASH_INDEX: usize = 136;
+pub(crate) const SEQUENCER_ROOT_INDEX: usize = 104;
+pub(crate) const CHUNK_DATA_HASH_INDEX: usize = 136;
+pub(crate) const CHUNK_TX_DATA_HASH_INDEX: usize = 168;
 
 // ================================
 // indices for batch pi hash table
@@ -41,14 +43,15 @@ pub(crate) const CHUNK_TX_DATA_HASH_INDEX: usize = 136;
 // - prev_state_root    32 bytes
 // - post_state_root    32 bytes
 // - withdraw_root      32 bytes
+// - sequencer_root     32 bytes
 // - chunk_data_hash    32 bytes
 // - z                  32 bytes
 // - y                  32 bytes
 // - versioned_hash     32 bytes
 
-pub(crate) const BATCH_Z_OFFSET: usize = 136;
-pub(crate) const BATCH_Y_OFFSET: usize = 168;
-pub(crate) const BATCH_VH_OFFSET: usize = 200;
+pub(crate) const BATCH_Z_OFFSET: usize = 168;
+pub(crate) const BATCH_Y_OFFSET: usize = 200;
+pub(crate) const BATCH_VH_OFFSET: usize = 232;
 
 // ================================
 // aggregator parameters

@@ -15,6 +15,7 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     //     chunk_0's prev_state ||
     //     chunk_k-1's post_state ||
     //     chunk_k-1's withdraw_root ||
+    //     chunk_k-1's sequencer_root ||
     //     batch_data_hash ||
     //     z ||
     //     y
@@ -29,6 +30,7 @@ pub(crate) fn get_max_keccak_updates(max_snarks: usize) -> usize {
     //     prev_state ||
     //     post_state ||
     //     withdraw_root ||
+    //     sequencer_root ||
     //     chunk_data_hash ||
     //     tx_data_hash
     // ]

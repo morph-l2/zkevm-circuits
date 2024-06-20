@@ -1390,8 +1390,20 @@ impl<F: Field> ExecutionConfig<F> {
             .evm_word()
             .map(|r| rlc::value(&block.withdraw_root.to_le_bytes(), r));
 
+        let final_sequencer_root_cell = self
+            .end_block_gadget
+            .sequencer_root_assigned
+            .lock()
+            .unwrap()
+            .expect("sequencer_root cell should has been assigned");
+
+        let sequencer_root_rlc = challenges
+            .evm_word()
+            .map(|r| rlc::value(&block.sequencer_root.to_le_bytes(), r));
+
         Ok(EvmCircuitExports {
             withdraw_root: (final_withdraw_root_cell, withdraw_root_rlc.into()),
+            sequencer_root: (final_sequencer_root_cell, sequencer_root_rlc.into()),
         })
     }
 

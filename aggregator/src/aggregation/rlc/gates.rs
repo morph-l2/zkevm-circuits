@@ -12,9 +12,9 @@ use crate::{constants::LOG_DEGREE, util::assert_equal, MAX_AGG_SNARKS};
 use super::RlcConfig;
 
 const FIXED_OFFSET_32: usize = MAX_AGG_SNARKS + 1;
-const FIXED_OFFSET_168: usize = FIXED_OFFSET_32 + 1;
-const FIXED_OFFSET_232: usize = FIXED_OFFSET_168 + 1;
-const FIXED_OFFSET_2_POW_32: usize = FIXED_OFFSET_232 + 1;
+const FIXED_OFFSET_200: usize = FIXED_OFFSET_32 + 1;
+const FIXED_OFFSET_264: usize = FIXED_OFFSET_200 + 1;
+const FIXED_OFFSET_2_POW_32: usize = FIXED_OFFSET_264 + 1;
 const FIXED_OFFSET_256: usize = FIXED_OFFSET_2_POW_32 + 1;
 const FIXED_OFFSET_EMPTY_KECCAK: usize = FIXED_OFFSET_256 + POWS_OF_256;
 
@@ -32,8 +32,8 @@ impl RlcConfig {
     /// | i ...                  | i ...                |
     /// | MAX_AGG_SNARKS         | MAX_AGG_SNARKS       |
     /// | MAX_AGG_SNARKS + 1     | 32                   |
-    /// | MAX_AGG_SNARKS + 2     | 168                  |
-    /// | MAX_AGG_SNARKS + 3     | 232                  |
+    /// | MAX_AGG_SNARKS + 2     | 200                  |
+    /// | MAX_AGG_SNARKS + 3     | 264                  |
     /// | MAX_AGG_SNARKS + 4     | 2 ^ 32               |
     /// | MAX_AGG_SNARKS + 5     | 256                  |
     /// | MAX_AGG_SNARKS + 6     | 256 ^ 2              |
@@ -60,8 +60,8 @@ impl RlcConfig {
         }
         assert_eq!(offset, FIXED_OFFSET_32);
 
-        // [32, 168, 232, 1 << 32]
-        for const_val in [32, 168, 232, 1 << 32] {
+        // [32, 200, 264, 1 << 32]
+        for const_val in [32, 200, 264, 1 << 32] {
             region.assign_fixed(
                 || format!("const at offset={offset}"),
                 self.fixed,
@@ -183,7 +183,7 @@ impl RlcConfig {
     pub(crate) fn one_hundred_and_sixty_eight_cell(&self, region_index: RegionIndex) -> Cell {
         Cell {
             region_index,
-            row_offset: FIXED_OFFSET_168,
+            row_offset: FIXED_OFFSET_200,
             column: self.fixed.into(),
         }
     }
@@ -192,7 +192,7 @@ impl RlcConfig {
     pub(crate) fn two_hundred_and_thirty_two_cell(&self, region_index: RegionIndex) -> Cell {
         Cell {
             region_index,
-            row_offset: FIXED_OFFSET_232,
+            row_offset: FIXED_OFFSET_264,
             column: self.fixed.into(),
         }
     }

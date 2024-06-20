@@ -16,7 +16,7 @@ use crate::{
 /// - the last (#MAX_AGG_SNARKS-k) chunks are from empty traces
 /// A BatchHash consists of 2 hashes.
 /// - batch_pi_hash   := keccak(chain_id || chunk_0.prev_state_root || chunk_k-1.post_state_root ||
-///   chunk_k-1.withdraw_root || batch_data_hash)
+///   chunk_k-1.withdraw_root || chunk_k-1.sequencer_root || batch_data_hash)
 /// - batch_data_hash := keccak(chunk_0.data_hash || ... || chunk_k-1.data_hash)
 pub struct BatchHash {
     /// Chain ID of the network.
@@ -93,6 +93,10 @@ impl BatchHash {
                     chunks_with_padding[i].withdraw_root
                 );
                 assert_eq!(
+                    chunks_with_padding[i + 1].sequencer_root,
+                    chunks_with_padding[i].sequencer_root
+                );
+                assert_eq!(
                     chunks_with_padding[i + 1].data_hash,
                     chunks_with_padding[i].data_hash
                 );
@@ -128,6 +132,7 @@ impl BatchHash {
         //     chunk[0].prev_state_root ||
         //     chunk[k-1].post_state_root ||
         //     chunk[k-1].withdraw_root ||
+        //     chunk[k-1].sequencer_root ||
         //     batch_data_hash ||
         //     z ||
         //     y ||
@@ -141,6 +146,9 @@ impl BatchHash {
                 .as_bytes(),
             chunks_with_padding[MAX_AGG_SNARKS - 1]
                 .withdraw_root
+                .as_bytes(),
+            chunks_with_padding[MAX_AGG_SNARKS - 1]
+                .sequencer_root
                 .as_bytes(),
             batch_data_hash.as_slice(),
             blob_assignments.challenge.to_be_bytes().as_ref(),
@@ -192,6 +200,7 @@ impl BatchHash {
         //      chunk[0].prev_state_root ||
         //      chunk[k-1].post_state_root ||
         //      chunk[k-1].withdraw_root ||
+        //      chunk[k-1].sequencer_root ||
         //      batch_data_hash ||
         //      z ||
         //      y ||
@@ -205,6 +214,9 @@ impl BatchHash {
                 .as_bytes(),
             self.chunks_with_padding[MAX_AGG_SNARKS - 1]
                 .withdraw_root
+                .as_bytes(),
+            self.chunks_with_padding[MAX_AGG_SNARKS - 1]
+                .sequencer_root
                 .as_bytes(),
             self.data_hash.as_bytes(),
             &self.blob.challenge.to_be_bytes(),
@@ -221,6 +233,7 @@ impl BatchHash {
         //     chunk[i].prevStateRoot ||
         //     chunk[i].postStateRoot ||
         //     chunk[i].withdrawRoot ||
+        //     chunk[i].sequencerRoot ||
         //     chunk[i].datahash ||
         //     chunk[i].tx_data_hash
         // )

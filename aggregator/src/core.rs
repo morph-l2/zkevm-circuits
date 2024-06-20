@@ -42,7 +42,7 @@ use crate::{
         parse_hash_digest_cells, parse_hash_preimage_cells, parse_pi_hash_rlc_cells,
     },
     AggregationConfig, RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, CHUNK_TX_DATA_HASH_INDEX, LIMBS,
-    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
+    POST_STATE_ROOT_INDEX, PREV_STATE_ROOT_INDEX, SEQUENCER_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
 };
 
 /// Subroutine for the witness generations.
@@ -185,6 +185,7 @@ pub(crate) struct AssignedBatchHash {
 // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
 // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
 // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+// 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
 // 3. batch_data_hash and chunk[i].pi_hash use a same chunk[i].data_hash when chunk[i] is not padded
 // 4. chunks are continuous: they are linked via the state roots
 // 5. batch and all its chunks use a same chain id
@@ -213,6 +214,7 @@ pub(crate) fn assign_batch_hashes(
     // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
     // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
     // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+    // 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
     // 5. batch and all its chunks use a same chain id
     copy_constraints(layouter, &extracted_hash_cells.hash_input_cells)?;
 
@@ -275,14 +277,15 @@ pub(crate) fn extract_hash_cells(
     //      chunk[0].prev_state_root ||
     //      chunk[k-1].post_state_root ||
     //      chunk[k-1].withdraw_root ||
+    //      chunk[k-1].sequencer_root ||
     //      batch_data_hash ||
     //      z ||
     //      y)
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
-    //      chunk[i].withdrawRoot || chunk[i].datahash ||
-    //      chunk[i].tx_data_hash)
+    //      chunk[i].withdrawRoot || chunk[i].withdrawRoot ||
+    //      chunk[i].sequencerRoot || chunk[i].tx_data_hash)
     // (3) batchDataHash preimage =
     //      (chunk[0].dataHash || ... || chunk[k-1].dataHash)
     // each part of the preimage is mapped to image by Keccak256
@@ -391,6 +394,7 @@ pub(crate) fn extract_hash_cells(
 // 2.1. batch_pi_hash and chunk[0] use a same prev_state_root
 // 2.2. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same post_state_root
 // 2.3. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same withdraw_root
+// 2.4. batch_pi_hash and chunk[MAX_AGG_SNARKS-1] use a same sequencer_root
 // 5. batch and all its chunks use a same chain id
 fn copy_constraints(
     layouter: &mut impl Layouter<Fr>,
@@ -431,6 +435,7 @@ fn copy_constraints(
                 //      chunk[0].prev_state_root ||
                 //      chunk[k-1].post_state_root ||
                 //      chunk[k-1].withdraw_root ||
+                //      chunk[k-1].sequencer_root ||
                 //      batch_data_hash ||
                 //      z ||
                 //      y
@@ -442,13 +447,14 @@ fn copy_constraints(
                 //        chunk[i].prevStateRoot ||
                 //        chunk[i].postStateRoot ||
                 //        chunk[i].withdrawRoot  ||
+                //        chunk[k-1].sequencer_root ||
                 //        chunk[i].datahash ||
                 //        chunk[i].tx_data_hash
                 //   )
                 //
-                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX
-                // used below are byte positions for
-                // prev_state_root, post_state_root, withdraw_root
+                // PREV_STATE_ROOT_INDEX, POST_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
+                // SEQUENCER_ROOT_INDEX used below are byte positions for
+                // prev_state_root, post_state_root, withdraw_root, sequencer_root
                 for i in 0..DIGEST_LEN {
                     // 2.1 chunk[0].prev_state_root
                     // sanity check
@@ -500,6 +506,23 @@ fn copy_constraints(
                         batch_pi_hash_preimage[i + WITHDRAW_ROOT_INDEX].cell(),
                         chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + WITHDRAW_ROOT_INDEX].cell(),
                     )?;
+                    // 2.4 chunk[k-1].sequencer_root
+                    assert_equal(
+                        &batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX],
+                        &chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX],
+                        format!(
+                            "chunk and batch's sequencer_root do not match: {:?} {:?}",
+                            &batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].value(),
+                            &chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX]
+                                .value(),
+                        )
+                        .as_str(),
+                    )?;
+                    region.constrain_equal(
+                        batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].cell(),
+                        chunk_pi_hash_preimages[MAX_AGG_SNARKS - 1][i + SEQUENCER_ROOT_INDEX]
+                            .cell(),
+                    )?;
                 }
 
                 // 5 assert hashes use a same chain id
@@ -538,8 +561,8 @@ fn copy_constraints(
 // 6. chunk[i]'s chunk_pi_hash_rlc_cells == chunk[i-1].chunk_pi_hash_rlc_cells when chunk[i] is
 // padded
 // 7. the hash input length are correct
-// - hashes[0] has 200 bytes
-// - hashes[1..MAX_AGG_SNARKS+1] has 168 bytes input
+// - hashes[0] has 232 bytes
+// - hashes[1..MAX_AGG_SNARKS+1] has 200 bytes input
 // - batch's data_hash length is 32 * number_of_valid_snarks
 // 8. batch data hash is correct w.r.t. its RLCs
 // 9. is_final_cells are set correctly
@@ -700,6 +723,7 @@ pub(crate) fn conditional_constraints(
                 //      chunk[0].prev_state_root ||
                 //      chunk[k-1].post_state_root ||
                 //      chunk[k-1].withdraw_root ||
+                //      chunk[k-1].sequencer_root ||
                 //      batch_data_hash ||
                 //      z ||
                 //      y
@@ -778,6 +802,7 @@ pub(crate) fn conditional_constraints(
                 //        chunk[i].prevStateRoot ||
                 //        chunk[i].postStateRoot ||
                 //        chunk[i].withdrawRoot  ||
+                //        chunk[i].sequencerRoot ||
                 //        chunk[i].datahash ||
                 //        chunk[i].tx_data_hash
                 //     )
@@ -860,8 +885,8 @@ pub(crate) fn conditional_constraints(
                 }
 
                 // 7. the hash input length are correct
-                // - hashes[0] has 232 bytes (preimage of batch pi hash)
-                // - hashes[1..MAX_AGG_SNARKS+1] has 168 bytes input (preimage of chunk pi hash)
+                // - hashes[0] has 264 bytes (preimage of batch pi hash)
+                // - hashes[1..MAX_AGG_SNARKS+1] has 200 bytes input (preimage of chunk pi hash)
                 // - batch's data_hash length is 32 * number_of_valid_snarks
 
                 // note: hash_input_len_cells[0] is from dummy rows of keccak circuit.
@@ -872,7 +897,7 @@ pub(crate) fn conditional_constraints(
                         .two_hundred_and_thirty_two_cell(batch_pi_hash_input_cell.region_index),
                 )?;
 
-                // - hashes[1..MAX_AGG_SNARKS+1] has 168 bytes input
+                // - hashes[1..MAX_AGG_SNARKS+1] has 200 bytes input
                 hash_input_len_cells
                     .iter()
                     .skip(3) // dummy (1) and batch pi hash (2)

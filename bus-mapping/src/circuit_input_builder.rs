@@ -464,6 +464,10 @@ impl<'a> CircuitInputBuilder {
             ADDRESS as MESSAGE_QUEUE, WITHDRAW_TRIE_ROOT_SLOT,
         };
 
+        use crate::l2_predeployed::l2_sequencer_set::{
+            ADDRESS as SEQUENCER_SET, SEQUENCER_SET_ROOT_SLOT,
+        };
+
         let withdraw_root = *self
             .sdb
             .get_storage(&MESSAGE_QUEUE, &WITHDRAW_TRIE_ROOT_SLOT)
@@ -471,6 +475,15 @@ impl<'a> CircuitInputBuilder {
         let withdraw_root_before = *self
             .sdb
             .get_committed_storage(&MESSAGE_QUEUE, &WITHDRAW_TRIE_ROOT_SLOT)
+            .1;
+
+        let sequencer_root = *self
+            .sdb
+            .get_storage(&SEQUENCER_SET, &SEQUENCER_SET_ROOT_SLOT)
+            .1;
+        let sequencer_root_before = *self
+            .sdb
+            .get_committed_storage(&SEQUENCER_SET, &SEQUENCER_SET_ROOT_SLOT)
             .1;
 
         let max_rws = self.block.circuits_params.max_rws;
@@ -507,6 +520,20 @@ impl<'a> CircuitInputBuilder {
             ),
         )?;
 
+        // increase the total rwc by 1
+        state.push_op(
+            &mut end_block_last,
+            RW::READ,
+            StorageOp::new(
+                *SEQUENCER_SET,
+                *SEQUENCER_SET_ROOT_SLOT,
+                sequencer_root,
+                sequencer_root,
+                dummy_tx_id,
+                sequencer_root_before,
+            ),
+        )?;
+
         let mut push_op = |step: &mut ExecStep, rwc: RWCounter, rw: RW, op: StartOp| {
             let op_ref = state.block.container.insert(Operation::new(rwc, rw, op));
             step.bus_mapping_instance.push(op_ref);
@@ -538,6 +565,8 @@ impl<'a> CircuitInputBuilder {
 
         self.block.withdraw_root = withdraw_root;
         self.block.prev_withdraw_root = withdraw_root_before;
+        self.block.sequencer_root = sequencer_root;
+        self.block.prev_sequencer_root = sequencer_root_before;
         self.block.block_steps.end_block_not_last = end_block_not_last;
         self.block.block_steps.end_block_last = end_block_last;
         Ok(())
@@ -747,6 +776,7 @@ pub fn keccak_inputs(block: &Block, code_db: &CodeDB) -> Result<Vec<Vec<u8>>, Er
         block.start_l1_queue_index,
         block.prev_state_root,
         block.withdraw_root,
+        block.sequencer_root,
         &block.headers,
         block.txs(),
     ));
@@ -811,6 +841,7 @@ fn keccak_inputs_pi_circuit(
     start_l1_queue_index: u64,
     prev_state_root: Word,
     withdraw_trie_root: Word,
+    sequencer_root: Word,
     block_headers: &BTreeMap<u64, BlockHead>,
     transactions: &[Transaction],
 ) -> Vec<Vec<u8>> {
@@ -885,6 +916,7 @@ fn keccak_inputs_pi_circuit(
         .chain(prev_state_root.to_be_bytes())
         .chain(after_state_root.to_fixed_bytes())
         .chain(withdraw_trie_root.to_be_bytes())
+        .chain(sequencer_root.to_be_bytes())
         .chain(data_hash.to_fixed_bytes())
         .chain(chunk_txbytes_hash.to_fixed_bytes())
         .collect::<Vec<u8>>();

@@ -30,3 +30,16 @@ pub mod l1_gas_price_oracle {
     /// L1 scalar slot in L1GasPriceOracle
     pub static SCALAR_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(3));
 }
+
+/// Helper for L2SequencerSet contract
+pub mod l2_sequencer_set {
+    use super::*;
+    use eth_types::U256;
+    use std::{str::FromStr, sync::LazyLock};
+
+    /// address of L2SequencerSet predeploy
+    pub static ADDRESS: LazyLock<Address> =
+        LazyLock::new(|| Address::from_str("0x5300000000000000000000000000000000000017").unwrap());
+    /// the slot of sequencer root in L2SequencerSet
+    pub static SEQUENCER_SET_ROOT_SLOT: LazyLock<U256> = LazyLock::new(|| U256::from(101));
+}

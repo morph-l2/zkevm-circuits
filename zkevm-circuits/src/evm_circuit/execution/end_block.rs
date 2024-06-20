@@ -16,8 +16,9 @@ use crate::{
     table::{CallContextFieldTag, TxContextFieldTag},
     util::Expr,
 };
-use bus_mapping::l2_predeployed::message_queue::{
-    ADDRESS as MESSAGE_QUEUE, WITHDRAW_TRIE_ROOT_SLOT,
+use bus_mapping::l2_predeployed::{
+    l2_sequencer_set::{ADDRESS as SEQUENCER_SET, SEQUENCER_SET_ROOT_SLOT},
+    message_queue::{ADDRESS as MESSAGE_QUEUE, WITHDRAW_TRIE_ROOT_SLOT},
 };
 use eth_types::{Field, ToScalar};
 use halo2_proofs::{
@@ -34,15 +35,21 @@ pub(crate) struct EndBlockGadget<F> {
     max_txs: Cell<F>,
     phase2_withdraw_root: Cell<F>,
     phase2_withdraw_root_prev: Cell<F>,
+    phase2_sequencer_root: Cell<F>,
+    phase2_sequencer_root_prev: Cell<F>,
     pub withdraw_root_assigned: Mutex<Option<AssignedCell>>,
+    pub sequencer_root_assigned: Mutex<Option<AssignedCell>>,
 }
 
 impl<F: Clone> Clone for EndBlockGadget<F> {
     fn clone(&self) -> Self {
         let withdraw_root_assigned: Option<AssignedCell> =
             *self.withdraw_root_assigned.lock().unwrap();
+        let sequencer_root_assigned: Option<AssignedCell> =
+            *self.sequencer_root_assigned.lock().unwrap();
         Self {
             withdraw_root_assigned: Mutex::new(withdraw_root_assigned),
+            sequencer_root_assigned: Mutex::new(sequencer_root_assigned),
             total_txs: self.total_txs.clone(),
             total_txs_is_max_txs: self.total_txs_is_max_txs.clone(),
             is_empty_block: self.is_empty_block.clone(),
@@ -50,6 +57,8 @@ impl<F: Clone> Clone for EndBlockGadget<F> {
             max_txs: self.max_txs.clone(),
             phase2_withdraw_root: self.phase2_withdraw_root.clone(),
             phase2_withdraw_root_prev: self.phase2_withdraw_root_prev.clone(),
+            phase2_sequencer_root: self.phase2_sequencer_root.clone(),
+            phase2_sequencer_root_prev: self.phase2_sequencer_root_prev.clone(),
         }
     }
 }
@@ -68,15 +77,17 @@ impl<F: Field> ExecutionGadget<F> for EndBlockGadget<F> {
         let total_txs_is_max_txs = IsEqualGadget::construct(cb, total_txs.expr(), max_txs.expr());
         let phase2_withdraw_root = cb.query_copy_cell_phase2();
         let phase2_withdraw_root_prev = cb.query_cell_phase2();
+        let phase2_sequencer_root = cb.query_copy_cell_phase2();
+        let phase2_sequencer_root_prev = cb.query_cell_phase2();
         // Note that rw_counter starts at 1
         let is_empty_block =
             IsZeroGadget::construct(cb, cb.curr.state.rw_counter.clone().expr() - 1.expr());
         // If the block is empty, we do 0 rw_table lookups
         // If the block is not empty, we will do 1 call_context lookup
-        // and add 1 withdraw_root lookup
+        // and add 1 withdraw_root lookup  add 1 sequencer_root lookup
         let total_rws = not::expr(is_empty_block.expr())
             * (cb.curr.state.rw_counter.clone().expr() - 1.expr() + 1.expr())
-            + 1.expr();
+            + 2.expr();
 
         // 1. Constraint total_rws and total_txs witness values depending on the empty
         // block case.
@@ -101,6 +112,20 @@ impl<F: Field> ExecutionGadget<F> for EndBlockGadget<F> {
             phase2_withdraw_root.expr(),
             total_txs.expr(),
             phase2_withdraw_root_prev.expr(),
+        );
+
+        let mut sequencer_root_slot_le = [0u8; 32];
+        SEQUENCER_SET_ROOT_SLOT.to_little_endian(sequencer_root_slot_le.as_mut_slice());
+
+        // 1.2 constraint sequencer_root
+        cb.account_storage_read(
+            Expression::Constant(SEQUENCER_SET.to_scalar().expect(
+                "unexpected Address for message_queue precompile -> Scalar conversion failure",
+            )),
+            cb.word_rlc(sequencer_root_slot_le.map(|byte| byte.expr())),
+            phase2_sequencer_root.expr(),
+            total_txs.expr(),
+            phase2_sequencer_root_prev.expr(),
         );
 
         // 2. If total_txs == max_txs, we know we have covered all txs from the
@@ -152,10 +177,13 @@ impl<F: Field> ExecutionGadget<F> for EndBlockGadget<F> {
             max_rws,
             phase2_withdraw_root,
             phase2_withdraw_root_prev,
+            phase2_sequencer_root,
+            phase2_sequencer_root_prev,
             total_txs,
             total_txs_is_max_txs,
             is_empty_block,
             withdraw_root_assigned: Default::default(),
+            sequencer_root_assigned: Default::default(),
         }
     }
 
@@ -199,6 +227,20 @@ impl<F: Field> ExecutionGadget<F> for EndBlockGadget<F> {
         // self.withdraw_root_prev_assigned
         //     .borrow_mut()
         //     .replace(withdraw_root_prev.cell());
+
+        let sequencer_root = self.phase2_sequencer_root.assign(
+            region,
+            offset,
+            region.word_rlc(block.sequencer_root),
+        )?;
+        let _sequencer_root_prev = self.phase2_sequencer_root_prev.assign(
+            region,
+            offset,
+            region.word_rlc(block.prev_sequencer_root),
+        )?;
+        if let Some(cell) = sequencer_root {
+            *self.sequencer_root_assigned.lock().unwrap() = Some(cell.cell());
+        }
 
         // When rw_indices is not empty, we're at the last row (at a fixed offset),
         // where we need to access the max_rws and max_txs constant.

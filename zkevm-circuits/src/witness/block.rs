@@ -64,6 +64,10 @@ pub struct Block<F> {
     pub withdraw_root: Word,
     /// Withdraw roof of the previous block
     pub prev_withdraw_root: Word,
+    /// Sequencer root
+    pub sequencer_root: Word,
+    /// Sequencer roof of the previous block
+    pub prev_sequencer_root: Word,
     /// Keccak inputs
     pub keccak_inputs: Vec<Vec<u8>>,
     /// Mpt updates
@@ -525,6 +529,30 @@ pub fn block_convert<F: Field>(
         log::error!("withdraw root is not avaliable");
     }
 
+    let sequencer_root_entry = mpt_updates.get(&super::rw::Rw::AccountStorage {
+        tx_id: total_tx_as_txid,
+        account_address: *bus_mapping::l2_predeployed::l2_sequencer_set::ADDRESS,
+        storage_key: *bus_mapping::l2_predeployed::l2_sequencer_set::SEQUENCER_SET_ROOT_SLOT,
+        // following field is not used in Mpt::Key so we just fill them arbitrarily
+        rw_counter: 0,
+        is_write: false,
+        value: U256::zero(),
+        value_prev: U256::zero(),
+        committed_value: U256::zero(),
+    });
+    if let Some(entry) = sequencer_root_entry {
+        let (sequencer_root, _) = entry.values();
+        if block.sequencer_root != sequencer_root {
+            log::error!(
+                "new sequencer root non consistent ({:#x}, vs ,{:#x})",
+                block.sequencer_root,
+                sequencer_root,
+            );
+        }
+    } else {
+        log::error!("sequencer root is not avaliable");
+    }
+
     Ok(Block {
         _marker: Default::default(),
         context: block.into(),
@@ -570,6 +598,8 @@ pub fn block_convert<F: Field>(
         state_root: None,
         withdraw_root: block.withdraw_root,
         prev_withdraw_root: block.prev_withdraw_root,
+        sequencer_root: block.sequencer_root,
+        prev_sequencer_root: block.prev_sequencer_root,
         keccak_inputs: circuit_input_builder::keccak_inputs(block, code_db)?,
         mpt_updates,
         chain_id,
