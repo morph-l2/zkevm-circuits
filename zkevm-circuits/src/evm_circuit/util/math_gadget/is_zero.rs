@@ -3,9 +3,8 @@ use crate::{
         constraint_builder::{ConstrainBuilderCommon, EVMConstraintBuilder},
         transpose_val_ret, CachedRegion, Cell, CellType,
     },
-    util::Expr,
+    util::{Expr, Field},
 };
-use eth_types::Field;
 use halo2_proofs::{
     circuit::Value,
     plonk::{Error, Expression},
@@ -71,14 +70,13 @@ impl<F: Field> IsZeroGadget<F> {
 
 #[cfg(test)]
 mod tests {
+    use super::{super::test_util::*, *};
     use crate::{
         evm_circuit::util::{constraint_builder::ConstrainBuilderCommon, Cell},
         util::Expr,
     };
-
-    use super::{super::test_util::*, *};
-
-    use eth_types::{ToScalar, Word};
+    use eth_types::Word;
+    use gadgets::ToScalar;
     use halo2_proofs::{halo2curves::bn256::Fr, plonk::Error};
 
     #[derive(Clone)]

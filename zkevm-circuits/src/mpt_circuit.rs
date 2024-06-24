@@ -4,17 +4,16 @@
 // use crate::mpt_circuit::mpt;
 use crate::{
     table::{LookupTable, MptTable, PoseidonTable},
-    util::{Challenges, SubCircuit, SubCircuitConfig},
+    util::{Challenges, Field, SubCircuit, SubCircuitConfig},
     witness,
 };
-use eth_types::Field;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
     halo2curves::bn256::Fr,
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed},
 };
 use itertools::Itertools;
-use mpt_zktrie::mpt_circuits::{
+use mpt_circuits::{
     gadgets::{mpt_update::hash_traces, poseidon::PoseidonLookup},
     mpt,
     types::Proof,
@@ -91,7 +90,7 @@ impl SubCircuitConfig<Fr> for MptCircuitConfig<Fr> {
 impl SubCircuit<Fr> for MptCircuit<Fr> {
     type Config = MptCircuitConfig<Fr>;
 
-    fn new_from_block(block: &witness::Block<Fr>) -> Self {
+    fn new_from_block(block: &witness::Block) -> Self {
         // 0 means "dynamic"
         if block.circuits_params.max_mpt_rows != 0 {
             // Fixed byte-bit-index lookup needs 2049 rows.
@@ -118,7 +117,7 @@ impl SubCircuit<Fr> for MptCircuit<Fr> {
         }
     }
 
-    fn min_num_rows_block(block: &witness::Block<Fr>) -> (usize, usize) {
+    fn min_num_rows_block(block: &witness::Block) -> (usize, usize) {
         (
             // For an empty storage proof, we may need to lookup the canonical representations of
             // three different keys. Each lookup requires 32 rows.

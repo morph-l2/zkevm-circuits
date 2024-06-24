@@ -11,7 +11,7 @@ use ethers_core::types::{
     transaction::eip2718::TypedTransaction, Eip1559TransactionRequest, Eip2930TransactionRequest,
     NameOrAddress, TransactionRequest, H256,
 };
-use halo2_proofs::halo2curves::{group::ff::PrimeField, secp256k1::Fq};
+use halo2curves::{group::ff::PrimeField, secp256k1::Fq};
 use num::Integer;
 use num_bigint::BigUint;
 use serde::{Serialize, Serializer};
@@ -289,7 +289,7 @@ pub struct Transaction {
     pub rlp_bytes: Vec<u8>,
     /// RLP unsigned bytes
     pub rlp_unsigned_bytes: Vec<u8>,
-
+    // TODO: add rlp_signed_bytes as well ?
     /// Transaction hash
     pub hash: H256,
 }
@@ -385,7 +385,7 @@ impl Transaction {
 }
 
 /// GethData is a type that contains all the information of a Ethereum block
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct GethData {
     /// chain id
     pub chain_id: u64,

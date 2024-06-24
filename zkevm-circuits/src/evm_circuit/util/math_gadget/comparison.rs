@@ -1,7 +1,9 @@
-use crate::evm_circuit::util::{
-    constraint_builder::EVMConstraintBuilder, math_gadget::*, sum, CachedRegion,
+use crate::{
+    evm_circuit::util::{
+        constraint_builder::EVMConstraintBuilder, math_gadget::*, sum, CachedRegion,
+    },
+    util::Field,
 };
-use eth_types::Field;
 use halo2_proofs::plonk::{Error, Expression};
 
 /// Returns (lt, eq):
@@ -51,8 +53,12 @@ impl<F: Field, const N_BYTES: usize> ComparisonGadget<F, N_BYTES> {
 #[cfg(test)]
 mod tests {
     use super::{test_util::*, *};
-    use crate::evm_circuit::util::{constraint_builder::ConstrainBuilderCommon, Cell};
+    use crate::{
+        evm_circuit::util::{constraint_builder::ConstrainBuilderCommon, Cell},
+        util::Field,
+    };
     use eth_types::*;
+    use gadgets::ToScalar;
     use halo2_proofs::{halo2curves::bn256::Fr, plonk::Error};
 
     #[derive(Clone)]

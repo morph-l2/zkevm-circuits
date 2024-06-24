@@ -1,6 +1,7 @@
+use crate::util::Field;
 use array_init::array_init;
 use bus_mapping::evm::OpcodeId;
-use eth_types::{Field, ToLittleEndian};
+use eth_types::ToLittleEndian;
 use halo2_proofs::{
     circuit::Value,
     plonk::{Error, Expression},
@@ -262,7 +263,7 @@ impl<F: Field> ExecutionGadget<F> for CallDataLoadGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         tx: &Transaction,
         call: &Call,
         step: &ExecStep,

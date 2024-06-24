@@ -4,9 +4,9 @@ use crate::{
         constraint_builder::{ConstrainBuilderCommon, EVMConstraintBuilder},
         from_bytes, pow_of_two_expr, split_u256, split_u256_limb64, CachedRegion, Cell,
     },
-    util::Expr,
+    util::{Expr, Field},
 };
-use eth_types::{Field, ToLittleEndian, Word};
+use eth_types::{ToLittleEndian, Word};
 use halo2_proofs::{
     circuit::Value,
     plonk::{Error, Expression},
@@ -151,7 +151,8 @@ impl<F: Field> MulAddWordsGadget<F> {
 #[cfg(test)]
 mod tests {
     use super::{super::test_util::*, *};
-    use eth_types::{ToScalar, Word};
+    use eth_types::Word;
+    use gadgets::ToScalar;
     use halo2_proofs::{halo2curves::bn256::Fr, plonk::Error};
 
     #[derive(Clone)]

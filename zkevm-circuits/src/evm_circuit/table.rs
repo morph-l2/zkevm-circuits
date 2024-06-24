@@ -2,9 +2,9 @@ pub use crate::table::TxContextFieldTag;
 use crate::{
     evm_circuit::step::{ExecutionState, ResponsibleOp},
     impl_expr,
+    util::Field,
 };
 use bus_mapping::{evm::OpcodeId, precompile::PrecompileCalls};
-use eth_types::Field;
 use gadgets::util::Expr;
 use halo2_proofs::plonk::Expression;
 use strum::IntoEnumIterator;
@@ -32,6 +32,7 @@ pub enum FixedTableTag {
     Pow2,
     ConstantGasCost,
     PrecompileInfo,
+    ChainFork,
 }
 impl_expr!(FixedTableTag);
 
@@ -141,6 +142,16 @@ impl FixedTableTag {
                     F::from(precompile.base_gas_cost().0),
                 ]
             })),
+            Self::ChainFork => Box::new(eth_types::forks::hardfork_heights().into_iter().map(
+                move |(fork, chain_id, height)| {
+                    [
+                        tag,
+                        F::from(fork as u64),
+                        F::from(chain_id),
+                        F::from(height),
+                    ]
+                },
+            )),
         }
     }
 }

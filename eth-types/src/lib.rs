@@ -24,10 +24,16 @@ pub mod macros;
 pub mod error;
 #[macro_use]
 pub mod bytecode;
+pub mod constants;
 pub mod evm_types;
+pub mod forks;
 pub mod geth_types;
+/// L2 system contracts
+pub mod l2_predeployed;
 pub mod l2_types;
 pub mod sign_types;
+pub mod state_db;
+pub mod utils;
 
 use crate::evm_types::{Gas, GasCost, OpcodeId, ProgramCounter};
 pub use bytecode::Bytecode;
@@ -43,8 +49,6 @@ pub use ethers_core::{
         Address, Block, Bytes, Signature, H160, H256, H64, U256, U64,
     },
 };
-use halo2_base::utils::ScalarField;
-use halo2_proofs::halo2curves::{bn256::Fr, group::ff::PrimeField};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -60,6 +64,9 @@ use crate::evm_types::Memory;
 use crate::evm_types::Stack;
 #[cfg(feature = "enable-storage")]
 use crate::evm_types::Storage;
+
+/// Main Block type
+pub type EthBlock = Block<Transaction>;
 
 /// Used for FFI with Golang. Bytes in golang will be serialized as base64 by default.
 pub mod base64 {
@@ -82,41 +89,6 @@ pub mod base64 {
         let s = String::deserialize(d)?;
         decode(s.as_bytes()).map_err(serde::de::Error::custom)
     }
-}
-
-/// Trait used to reduce verbosity with the declaration of the [`Field`]
-/// trait and its repr.
-pub trait Field:
-    PrimeField<Repr = [u8; 32]> + hash_circuit::hash::Hashable + std::convert::From<Fr> + ScalarField
-{
-    /// Re-expose zero element as a function
-    fn zero() -> Self {
-        Self::ZERO
-    }
-
-    /// Re-expose one element as a function
-    fn one() -> Self {
-        Self::ONE
-    }
-
-    /// Expose the lower 128 bits
-    fn get_lower_128(&self) -> u128 {
-        u128::from_le_bytes(self.to_repr().as_ref()[..16].try_into().unwrap())
-    }
-}
-
-// Impl custom `Field` trait for BN256 Fr to be used and consistent with the
-// rest of the workspace.
-impl Field for Fr {}
-
-// Impl custom `Field` trait for BN256 Fq to be used and consistent with the
-// rest of the workspace.
-// impl Field for Fq {}
-
-/// Trait used to define types that can be converted to a 256 bit scalar value.
-pub trait ToScalar<F> {
-    /// Convert the type to a scalar value.
-    fn to_scalar(&self) -> Option<F>;
 }
 
 /// Trait used to convert a type to a [`Word`].
@@ -168,14 +140,6 @@ impl<'de> Deserialize<'de> for DebugU256 {
     {
         let s = String::deserialize(deserializer)?;
         DebugU256::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-impl<F: Field> ToScalar<F> for DebugU256 {
-    fn to_scalar(&self) -> Option<F> {
-        let mut bytes = [0u8; 32];
-        self.to_little_endian(&mut bytes);
-        F::from_repr(bytes).into()
     }
 }
 
@@ -232,14 +196,6 @@ impl ToU16LittleEndian for U256 {
             u16_array[idx * 4 + 3] = ((u64_cell >> 48) & 0xffff) as u16;
         }
         u16_array
-    }
-}
-
-impl<F: Field> ToScalar<F> for U256 {
-    fn to_scalar(&self) -> Option<F> {
-        let mut bytes = [0u8; 32];
-        self.to_little_endian(&mut bytes);
-        F::from_repr(bytes).into()
     }
 }
 
@@ -310,33 +266,6 @@ impl ToWord for i32 {
 impl ToWord for Word {
     fn to_word(&self) -> Word {
         *self
-    }
-}
-
-impl<F: Field> ToScalar<F> for Address {
-    fn to_scalar(&self) -> Option<F> {
-        let mut bytes = [0u8; 32];
-        bytes[32 - Self::len_bytes()..].copy_from_slice(self.as_bytes());
-        bytes.reverse();
-        F::from_repr(bytes).into()
-    }
-}
-
-impl<F: Field> ToScalar<F> for bool {
-    fn to_scalar(&self) -> Option<F> {
-        self.to_word().to_scalar()
-    }
-}
-
-impl<F: Field> ToScalar<F> for u64 {
-    fn to_scalar(&self) -> Option<F> {
-        Some(F::from(*self))
-    }
-}
-
-impl<F: Field> ToScalar<F> for usize {
-    fn to_scalar(&self) -> Option<F> {
-        u64::try_from(*self).ok().map(F::from)
     }
 }
 
@@ -508,6 +437,17 @@ impl GethExecError {
             GethExecError::InvalidOpcode(_) => "invalid opcode",
         }
     }
+
+    /// Returns if the error is related to precheck fail
+    pub fn is_precheck_failed(&self) -> bool {
+        matches!(
+            self,
+            GethExecError::ContractAddressCollision
+                | GethExecError::InsufficientBalance
+                | GethExecError::Depth
+                | GethExecError::NonceUintOverflow
+        )
+    }
 }
 
 impl Display for GethExecError {
@@ -530,6 +470,59 @@ impl Display for GethExecError {
     }
 }
 
+impl FromStr for GethExecError {
+    type Err = ();
+
+    fn from_str(v: &str) -> Result<Self, Self::Err> {
+        static STACK_UNDERFLOW_RE: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"^stack underflow \((\d+) <=> (\d+)\)$").unwrap());
+        static STACK_OVERFLOW_RE: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"^stack limit reached (\d+) \((\d+)\)$").unwrap());
+
+        let e = match v {
+            "out of gas" => GethExecError::OutOfGas,
+            "contract creation code storage out of gas" => GethExecError::CodeStoreOutOfGas,
+            "max call depth exceeded" => GethExecError::Depth,
+            "insufficient balance for transfer" => GethExecError::InsufficientBalance,
+            "contract address collision" => GethExecError::ContractAddressCollision,
+            "execution reverted" => GethExecError::ExecutionReverted,
+            "max initcode size exceeded" => GethExecError::MaxInitCodeSizeExceeded,
+            "max code size exceeded" => GethExecError::MaxCodeSizeExceeded,
+            "invalid jump destination" => GethExecError::InvalidJump,
+            "write protection" => GethExecError::WriteProtection,
+            "return data out of bounds" => GethExecError::ReturnDataOutOfBounds,
+            "gas uint64 overflow" => GethExecError::GasUintOverflow,
+            "invalid code: must not begin with 0xef" => GethExecError::InvalidCode,
+            "nonce uint64 overflow" => GethExecError::NonceUintOverflow,
+            _ if v.starts_with("stack underflow") => {
+                let caps = STACK_UNDERFLOW_RE.captures(v).unwrap();
+                let stack_len = caps.get(1).unwrap().as_str().parse::<u64>().unwrap();
+                let required = caps.get(2).unwrap().as_str().parse::<u64>().unwrap();
+                GethExecError::StackUnderflow {
+                    stack_len,
+                    required,
+                }
+            }
+            _ if v.starts_with("stack limit reached") => {
+                let caps = STACK_OVERFLOW_RE.captures(v).unwrap();
+                let stack_len = caps.get(1).unwrap().as_str().parse::<u64>().unwrap();
+                let limit = caps.get(2).unwrap().as_str().parse::<u64>().unwrap();
+                GethExecError::StackOverflow { stack_len, limit }
+            }
+            _ if v.starts_with("invalid opcode") => v
+                .strip_prefix("invalid opcode: ")
+                .map(|s| OpcodeId::from_str(s).unwrap())
+                .map(GethExecError::InvalidOpcode)
+                .unwrap(),
+            _ => {
+                log::warn!("unknown geth error: {}", v);
+                return Err(());
+            }
+        };
+        Ok(e)
+    }
+}
+
 impl Serialize for GethExecError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -547,11 +540,6 @@ impl<'de> Deserialize<'de> for GethExecError {
     {
         struct GethExecErrorVisitor;
 
-        static STACK_UNDERFLOW_RE: LazyLock<regex::Regex> =
-            LazyLock::new(|| regex::Regex::new(r"^stack underflow \((\d+) <=> (\d+)\)$").unwrap());
-        static STACK_OVERFLOW_RE: LazyLock<regex::Regex> =
-            LazyLock::new(|| regex::Regex::new(r"^stack limit reached (\d+) \((\d+)\)$").unwrap());
-
         impl<'de> de::Visitor<'de> for GethExecErrorVisitor {
             type Value = GethExecError;
 
@@ -563,44 +551,8 @@ impl<'de> Deserialize<'de> for GethExecError {
             where
                 E: de::Error,
             {
-                let e = match v {
-                    "out of gas" => GethExecError::OutOfGas,
-                    "contract creation code storage out of gas" => GethExecError::CodeStoreOutOfGas,
-                    "max call depth exceeded" => GethExecError::Depth,
-                    "insufficient balance for transfer" => GethExecError::InsufficientBalance,
-                    "contract address collision" => GethExecError::ContractAddressCollision,
-                    "execution reverted" => GethExecError::ExecutionReverted,
-                    "max initcode size exceeded" => GethExecError::MaxInitCodeSizeExceeded,
-                    "max code size exceeded" => GethExecError::MaxCodeSizeExceeded,
-                    "invalid jump destination" => GethExecError::InvalidJump,
-                    "write protection" => GethExecError::WriteProtection,
-                    "return data out of bounds" => GethExecError::ReturnDataOutOfBounds,
-                    "gas uint64 overflow" => GethExecError::GasUintOverflow,
-                    "invalid code: must not begin with 0xef" => GethExecError::InvalidCode,
-                    "nonce uint64 overflow" => GethExecError::NonceUintOverflow,
-                    _ if v.starts_with("stack underflow") => {
-                        let caps = STACK_UNDERFLOW_RE.captures(v).unwrap();
-                        let stack_len = caps.get(1).unwrap().as_str().parse::<u64>().unwrap();
-                        let required = caps.get(2).unwrap().as_str().parse::<u64>().unwrap();
-                        GethExecError::StackUnderflow {
-                            stack_len,
-                            required,
-                        }
-                    }
-                    _ if v.starts_with("stack limit reached") => {
-                        let caps = STACK_OVERFLOW_RE.captures(v).unwrap();
-                        let stack_len = caps.get(1).unwrap().as_str().parse::<u64>().unwrap();
-                        let limit = caps.get(2).unwrap().as_str().parse::<u64>().unwrap();
-                        GethExecError::StackOverflow { stack_len, limit }
-                    }
-                    _ if v.starts_with("invalid opcode") => v
-                        .strip_prefix("invalid opcode: ")
-                        .map(|s| OpcodeId::from_str(s).unwrap())
-                        .map(GethExecError::InvalidOpcode)
-                        .unwrap(),
-                    _ => return Err(E::invalid_value(de::Unexpected::Str(v), &self)),
-                };
-                Ok(e)
+                v.parse()
+                    .map_err(|_| E::invalid_value(de::Unexpected::Str(v), &self))
             }
         }
 
@@ -805,8 +757,30 @@ pub struct FlatGethCallTrace {
 }
 
 impl GethCallTrace {
+    fn is_precheck_failed(&self) -> bool {
+        self.error
+            .as_ref()
+            .and_then(|e| e.parse::<GethExecError>().ok())
+            .map(|e| e.is_precheck_failed())
+            .unwrap_or(false)
+    }
+
     /// generate the call_is_success vec
     pub fn gen_call_is_success(&self, mut call_is_success: Vec<bool>) -> Vec<bool> {
+        // ignore the call if precheck failed
+        // https://github.com/ethereum/go-ethereum/issues/21438
+        if self.is_precheck_failed() {
+            return call_is_success;
+        }
+        if self.error.as_deref() == Some(GethExecError::InsufficientBalance.error()) {
+            return call_is_success;
+        }
+        if self.error.as_deref() == Some(GethExecError::Depth.error()) {
+            return call_is_success;
+        }
+        if self.error.as_deref() == Some(GethExecError::NonceUintOverflow.error()) {
+            return call_is_success;
+        }
         call_is_success.push(self.error.is_none());
         for call in &self.calls {
             call_is_success = call.gen_call_is_success(call_is_success);
@@ -832,6 +806,11 @@ impl GethCallTrace {
         trace: &mut Vec<FlatGethCallTrace>,
         created: &mut HashSet<Address>,
     ) {
+        // ignore the call if precheck failed
+        // https://github.com/ethereum/go-ethereum/issues/21438
+        if self.is_precheck_failed() {
+            return;
+        }
         let call_type = OpcodeId::from_str(&self.call_type).unwrap();
         let is_callee_code_empty = self
             .to

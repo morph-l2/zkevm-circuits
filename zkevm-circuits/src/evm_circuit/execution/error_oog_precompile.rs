@@ -11,11 +11,13 @@ use crate::{
         },
     },
     table::CallContextFieldTag,
+    util::Field,
     witness::{Block, Call, ExecStep, Transaction},
 };
 use bus_mapping::precompile::PrecompileCalls;
-use eth_types::{evm_types::GasCost, Field, ToScalar};
+use eth_types::evm_types::GasCost;
 use gadgets::util::{sum, Expr};
+use gadgets::ToScalar;
 use halo2_proofs::{circuit::Value, plonk::Error};
 
 #[derive(Clone, Debug)]
@@ -152,7 +154,7 @@ impl<F: Field> ExecutionGadget<F> for ErrorOOGPrecompileGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _transaction: &Transaction,
         call: &Call,
         step: &ExecStep,

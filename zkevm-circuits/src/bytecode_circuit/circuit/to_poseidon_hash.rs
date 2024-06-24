@@ -5,11 +5,12 @@ use crate::{
         not, or, select,
     },
     table::{BytecodeFieldTag, KeccakTable, PoseidonTable},
-    util::{Challenges, Expr, SubCircuitConfig},
+    util::{Challenges, Expr, Field, SubCircuitConfig},
 };
 use bus_mapping::util::POSEIDON_CODE_HASH_EMPTY;
-use eth_types::{Field, ToScalar, ToWord};
+use eth_types::ToWord;
 use gadgets::is_zero::IsZeroChip;
+use gadgets::ToScalar;
 use halo2_proofs::{
     circuit::{Layouter, Region, Value},
     plonk::{Advice, Column, ConstraintSystem, Error, Expression, VirtualCells},

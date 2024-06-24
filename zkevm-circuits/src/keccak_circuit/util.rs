@@ -1,7 +1,9 @@
 //! Utility traits, functions used in the crate.
 
 use super::{keccak_packed_multi::keccak_unusable_rows, param::*};
-use eth_types::{Field, ToScalar, Word};
+use crate::util::Field;
+use eth_types::Word;
+use gadgets::ToScalar;
 use halo2_proofs::circuit::Value;
 use std::env::var;
 
@@ -244,7 +246,7 @@ pub(crate) fn extract_field<F: Field>(value: Value<F>) -> F {
 
 /// Encodes the data using rlc
 pub(crate) mod compose_rlc {
-    use eth_types::Field;
+    use crate::util::Field;
     use halo2_proofs::plonk::Expression;
 
     pub(crate) fn expr<F: Field>(expressions: &[Expression<F>], r: Expression<F>) -> Expression<F> {
@@ -261,7 +263,7 @@ pub(crate) mod compose_rlc {
 /// Scatters a value into a packed word constant
 pub(crate) mod scatter {
     use super::pack;
-    use eth_types::Field;
+    use crate::util::Field;
     use halo2_proofs::plonk::Expression;
 
     pub(crate) fn expr<F: Field>(value: u8, count: usize) -> Expression<F> {
@@ -271,7 +273,7 @@ pub(crate) mod scatter {
 
 /// Packs bits into bytes
 pub(crate) mod to_bytes {
-    use eth_types::Field;
+    use crate::util::Field;
     use gadgets::util::Expr;
     use halo2_proofs::plonk::Expression;
 

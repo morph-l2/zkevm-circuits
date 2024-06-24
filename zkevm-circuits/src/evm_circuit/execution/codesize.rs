@@ -1,6 +1,6 @@
+use crate::util::Field;
 use array_init::array_init;
 use bus_mapping::evm::OpcodeId;
-use eth_types::Field;
 use halo2_proofs::{circuit::Value, plonk::Error};
 
 use crate::{
@@ -69,7 +69,7 @@ impl<F: Field> ExecutionGadget<F> for CodesizeGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _transaction: &Transaction,
         _call: &Call,
         step: &ExecStep,

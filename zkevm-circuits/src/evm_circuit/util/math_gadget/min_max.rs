@@ -1,8 +1,10 @@
-use crate::evm_circuit::util::{
-    constraint_builder::EVMConstraintBuilder, math_gadget::*, select, transpose_val_ret,
-    CachedRegion,
+use crate::{
+    evm_circuit::util::{
+        constraint_builder::EVMConstraintBuilder, math_gadget::*, select, transpose_val_ret,
+        CachedRegion,
+    },
+    util::Field,
 };
-use eth_types::Field;
 use halo2_proofs::{
     circuit::Value,
     plonk::{Error, Expression},
@@ -71,7 +73,8 @@ impl<F: Field, const N_BYTES: usize> MinMaxGadget<F, N_BYTES> {
 mod tests {
     use super::{test_util::*, *};
     use crate::evm_circuit::util::{constraint_builder::ConstrainBuilderCommon, Cell};
-    use eth_types::{ToScalar, Word};
+    use eth_types::Word;
+    use gadgets::ToScalar;
     use halo2_proofs::{halo2curves::bn256::Fr, plonk::Error};
 
     #[derive(Clone)]

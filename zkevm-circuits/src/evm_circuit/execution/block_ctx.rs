@@ -11,10 +11,10 @@ use crate::{
         witness::{Block, Call, ExecStep, Transaction},
     },
     table::BlockContextFieldTag,
-    util::Expr,
+    util::{Expr, Field},
 };
 use bus_mapping::evm::OpcodeId;
-use eth_types::{Field, ToLittleEndian};
+use eth_types::ToLittleEndian;
 use halo2_proofs::plonk::Error;
 
 #[derive(Clone, Debug)]
@@ -81,7 +81,7 @@ impl<F: Field> ExecutionGadget<F> for BlockCtxU64Gadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _: &Transaction,
         _: &Call,
         step: &ExecStep,
@@ -122,7 +122,7 @@ impl<F: Field> ExecutionGadget<F> for BlockCtxU160Gadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _: &Transaction,
         _: &Call,
         step: &ExecStep,
@@ -147,11 +147,6 @@ impl<F: Field> ExecutionGadget<F> for BlockCtxU160Gadget<F> {
     }
 }
 
-// TODO:
-// This gadget is used for `BASEFEE` opcode. With current `scroll` feature, it's
-// disabled by l2geth and converted to an invalid opcode.
-// <https://github.com/scroll-tech/zkevm-circuits/blob/develop/eth-types/src/evm_types/opcode_ids.rs#L1062>
-// So need to test it after `BASEFEE` opcode is enabled in scroll l2geth.
 #[derive(Clone, Debug)]
 pub(crate) struct BlockCtxU256Gadget<F> {
     value_u256: BlockCtxGadget<F, N_BYTES_WORD>,
@@ -172,14 +167,11 @@ impl<F: Field> ExecutionGadget<F> for BlockCtxU256Gadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _: &Transaction,
         _: &Call,
         step: &ExecStep,
     ) -> Result<(), Error> {
-        if cfg!(feature = "scroll") {
-            panic!("BASEFEE is disabled by scroll for now");
-        }
         log::debug!("BlockCtxU256Gadget assign for {:?}", step.opcode);
 
         self.value_u256
@@ -229,7 +221,7 @@ impl<F: Field> ExecutionGadget<F> for DifficultyGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        _block: &Block<F>,
+        _block: &Block,
         _: &Transaction,
         _: &Call,
         step: &ExecStep,

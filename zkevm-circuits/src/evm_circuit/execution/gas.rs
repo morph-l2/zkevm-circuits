@@ -13,9 +13,9 @@ use crate::{
         },
         witness::{Block, Call, ExecStep, Transaction},
     },
-    util::Expr,
+    util::{Expr, Field},
 };
-use eth_types::{evm_types::OpcodeId, Field};
+use eth_types::evm_types::OpcodeId;
 use halo2_proofs::plonk::Error;
 
 #[derive(Clone, Debug)]
@@ -64,7 +64,7 @@ impl<F: Field> ExecutionGadget<F> for GasGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        _block: &Block<F>,
+        _block: &Block,
         _transaction: &Transaction,
         _call: &Call,
         step: &ExecStep,

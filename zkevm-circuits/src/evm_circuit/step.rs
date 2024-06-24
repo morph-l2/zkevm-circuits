@@ -5,11 +5,11 @@ use crate::{
         util::Cell,
         witness::{Block, Call, ExecStep},
     },
-    util::Expr,
+    util::{Expr, Field},
     witness::Transaction,
 };
 use bus_mapping::{evm::OpcodeId, precompile::PrecompileCalls};
-use eth_types::{evm_types::GasCost, Field};
+use eth_types::evm_types::GasCost;
 use halo2_proofs::{
     circuit::Value,
     plonk::{Advice, Column, ConstraintSystem, Error, Expression},
@@ -42,6 +42,7 @@ pub enum ExecutionState {
     EndTx,
     EndInnerBlock,
     EndBlock,
+    Padding,
     // Opcode successful cases
     STOP,
     ADD_SUB,     // ADD, SUB
@@ -86,6 +87,7 @@ pub enum ExecutionState {
     SELFBALANCE,
     POP,
     MEMORY, // MLOAD, MSTORE, MSTORE8
+    MCOPY,
     SLOAD,
     SSTORE,
     JUMP,
@@ -94,6 +96,8 @@ pub enum ExecutionState {
     MSIZE,
     GAS,
     JUMPDEST,
+    TLOAD,
+    TSTORE,
     PUSH, // PUSH0, PUSH1, PUSH2, ..., PUSH32
     DUP,  // DUP1, DUP2, ..., DUP16
     SWAP, // SWAP1, SWAP2, ..., SWAP16
@@ -286,6 +290,7 @@ impl ExecutionState {
             Self::MEMORY => {
                 vec![OpcodeId::MLOAD, OpcodeId::MSTORE, OpcodeId::MSTORE8]
             }
+            Self::MCOPY => vec![OpcodeId::MCOPY],
             Self::SLOAD => vec![OpcodeId::SLOAD],
             Self::SSTORE => vec![OpcodeId::SSTORE],
             Self::JUMP => vec![OpcodeId::JUMP],
@@ -294,6 +299,8 @@ impl ExecutionState {
             Self::MSIZE => vec![OpcodeId::MSIZE],
             Self::GAS => vec![OpcodeId::GAS],
             Self::JUMPDEST => vec![OpcodeId::JUMPDEST],
+            Self::TLOAD => vec![OpcodeId::TLOAD],
+            Self::TSTORE => vec![OpcodeId::TSTORE],
             Self::PUSH => vec![
                 OpcodeId::PUSH0,
                 OpcodeId::PUSH1,
@@ -607,6 +614,7 @@ impl<F: Field> Step<F> {
                 end_tx: cell_manager.query_cell(CellType::StoragePhase1),
             }
         };
+        assert_eq!(cell_manager.get_height(), STEP_STATE_HEIGHT);
         Self {
             state,
             cell_manager,
@@ -626,7 +634,7 @@ impl<F: Field> Step<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        _block: &Block<F>,
+        _block: &Block,
         tx: &Transaction,
         call: &Call,
         step: &ExecStep,

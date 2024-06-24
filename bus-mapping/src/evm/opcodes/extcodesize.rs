@@ -57,7 +57,15 @@ impl Opcode for Extcodesize {
         let (code_hash, code_size) = if exists {
             (
                 account.code_hash,
-                state.code(account.code_hash)?.len().into(),
+                if cfg!(feature = "scroll") {
+                    //debug_assert_eq!(
+                    //    account.code_size,
+                    //    state.code(account.code_hash)?.len().into()
+                    //);
+                    account.code_size
+                } else {
+                    state.code(account.code_hash)?.len().into()
+                },
             )
         } else {
             (H256::zero(), Word::zero())
@@ -93,12 +101,12 @@ mod extcodesize_tests {
         circuit_input_builder::ExecState,
         mock::BlockData,
         operation::{AccountOp, CallContextOp, StackOp, RW},
-        state_db::CodeDB,
     };
     use eth_types::{
         bytecode,
         evm_types::{OpcodeId, StackAddress},
         geth_types::{Account, GethData},
+        state_db::CodeDB,
         Bytecode, U256,
     };
     use mock::{TestContext, MOCK_1_ETH, MOCK_ACCOUNTS, MOCK_CODES, MOCK_COINBASE};

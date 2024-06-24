@@ -9,9 +9,9 @@ use crate::{
         },
         witness::{Block, Call, ExecStep, Transaction},
     },
-    util::Expr,
+    util::{Expr, Field},
 };
-use eth_types::{evm_types::OpcodeId, Field};
+use eth_types::evm_types::OpcodeId;
 use halo2_proofs::plonk::Error;
 
 #[derive(Clone, Debug)]
@@ -58,7 +58,7 @@ impl<F: Field> ExecutionGadget<F> for DupGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _: &Transaction,
         _: &Call,
         step: &ExecStep,

@@ -11,10 +11,9 @@ use crate::{
         U16Table, U8Table,
     },
     tx_circuit::{TxCircuitConfig, TxCircuitConfigArgs},
-    util::{Challenges, SubCircuit, SubCircuitConfig},
+    util::{Challenges, Field, SubCircuit, SubCircuitConfig},
     witness::Transaction,
 };
-use eth_types::Field;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner},
     plonk::{Circuit, ConstraintSystem, Error, Expression},
@@ -132,7 +131,7 @@ impl<F: Field> TxCircuitTester<F> {
 impl<F: Field> SubCircuit<F> for TxCircuitTester<F> {
     type Config = TxCircuitTesterConfig<F>;
 
-    fn new_from_block(block: &crate::witness::Block<F>) -> Self {
+    fn new_from_block(block: &crate::witness::Block) -> Self {
         let txs = block.txs.clone();
         let max_txs = block.circuits_params.max_txs;
         let chain_id = block.chain_id;
@@ -150,9 +149,9 @@ impl<F: Field> SubCircuit<F> for TxCircuitTester<F> {
         unimplemented!("not needed")
     }
 
-    fn min_num_rows_block(block: &crate::witness::Block<F>) -> (usize, usize) {
+    fn min_num_rows_block(block: &crate::witness::Block) -> (usize, usize) {
         // TODO
-        SigCircuit::min_num_rows_block(block)
+        SigCircuit::<F>::min_num_rows_block(block)
     }
 }
 

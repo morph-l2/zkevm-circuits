@@ -44,21 +44,21 @@ use crate::{
         Transaction,
     },
 };
-use bus_mapping::circuit_input_builder::keccak_inputs_sign_verify;
+use crate::{util::Field, witness::keccak::keccak_inputs_sign_verify};
 use eth_types::{
     geth_types::{
         access_list_size, TxType,
         TxType::{Eip155, Eip1559, Eip2930, L1Msg, PreEip155},
     },
     sign_types::SignData,
-    AccessList, Address, Field, ToAddress, ToBigEndian, ToScalar,
+    AccessList, Address, ToAddress, ToBigEndian,
 };
 use ethers_core::utils::keccak256;
+use gadgets::ToScalar;
 use gadgets::{
     binary_number::{BinaryNumberChip, BinaryNumberConfig},
     comparator::{ComparatorChip, ComparatorConfig, ComparatorInstruction},
     is_equal::{IsEqualChip, IsEqualConfig, IsEqualInstruction},
-    less_than::{LtChip, LtConfig, LtInstruction},
     util::{and, not, select, sum, Expr},
 };
 use halo2_proofs::{
@@ -79,9 +79,9 @@ use std::{
 use crate::{util::Challenges, witness::rlp_fsm::get_rlp_len_tag_length};
 #[cfg(feature = "onephase")]
 use halo2_proofs::plonk::FirstPhase as SecondPhase;
-use halo2_proofs::plonk::Fixed;
 #[cfg(not(feature = "onephase"))]
 use halo2_proofs::plonk::SecondPhase;
+use halo2_proofs::plonk::{Any, Fixed};
 use itertools::Itertools;
 
 /// Number of rows of one tx occupies in the fixed part of tx table
@@ -128,14 +128,213 @@ struct RlpTableInputValue<F: Field> {
     be_bytes_rlc: Value<F>,
 }
 
+/// Read-only Tx Memory table row.
+#[derive(Debug, Clone)]
+pub struct TxRomTableRow {
+    pub(crate) tag: TxFieldTag,
+    pub(crate) tag_next: TxFieldTag,
+    pub(crate) is_tx_id_unchanged: u8,
+    pub(crate) is_final: u8,
+    pub(crate) is_next_dynamic_first: u8,
+}
+
+impl From<(TxFieldTag, TxFieldTag, u8, u8, u8)> for TxRomTableRow {
+    fn from(value: (TxFieldTag, TxFieldTag, u8, u8, u8)) -> Self {
+        Self {
+            tag: value.0,
+            tag_next: value.1,
+            is_tx_id_unchanged: value.2,
+            is_final: value.3,
+            is_next_dynamic_first: value.4,
+        }
+    }
+}
+
+impl TxRomTableRow {
+    pub(crate) fn values<F: Field>(&self) -> Vec<Value<F>> {
+        vec![
+            Value::known(F::from(usize::from(self.tag) as u64)),
+            Value::known(F::from(usize::from(self.tag_next) as u64)),
+            Value::known(F::from(self.is_tx_id_unchanged as u64)),
+            Value::known(F::from(self.is_final as u64)),
+            Value::known(F::from(self.is_next_dynamic_first as u64)),
+        ]
+    }
+}
+
+/// Read-only Memory table for verifying correct tag column transition within the TxCircuit.
+#[derive(Clone, Copy, Debug)]
+pub struct TxRomTable {
+    /// Tag of the current row
+    pub tag: Column<Fixed>,
+    /// Tag of the next row
+    pub tag_next: Column<Fixed>,
+    /// Indicator for if the tx_id is the same for current and next tag
+    pub is_tx_id_unchanged: Column<Fixed>,
+    /// Indicator if the dynamic section tag is complete on current row
+    /// This indicator only applies to the dynamic section
+    pub is_final: Column<Fixed>,
+    /// Indicator for the end of the fixed section
+    /// The last tag of the fixed section should transition into either calldata or access_list
+    pub is_next_dynamic_first: Column<Fixed>,
+}
+
+impl<F: Field> LookupTable<F> for TxRomTable {
+    fn columns(&self) -> Vec<Column<Any>> {
+        vec![
+            self.tag.into(),
+            self.tag_next.into(),
+            self.is_tx_id_unchanged.into(),
+            self.is_final.into(),
+            self.is_next_dynamic_first.into(),
+        ]
+    }
+
+    fn annotations(&self) -> Vec<String> {
+        vec![
+            String::from("tag"),
+            String::from("tag_next"),
+            String::from("is_tx_id_unchanged"),
+            String::from("is_final"),
+            String::from("is_next_dynamic_first"),
+        ]
+    }
+}
+
+impl TxRomTable {
+    /// Construct the ROM table
+    pub fn construct<F: Field>(meta: &mut ConstraintSystem<F>) -> Self {
+        Self {
+            tag: meta.fixed_column(),
+            tag_next: meta.fixed_column(),
+            is_tx_id_unchanged: meta.fixed_column(),
+            is_final: meta.fixed_column(),
+            is_next_dynamic_first: meta.fixed_column(),
+        }
+    }
+
+    /// Load the ROM table.
+    pub fn load<F: Field>(&self, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+        layouter.assign_region(
+            || "Tx ROM table",
+            |mut region| {
+                let transition_scenarios: Vec<(TxFieldTag, TxFieldTag, u8, u8, u8)> = vec![
+                    // All fixed section tags. tx_id stays the same except the last tx.
+                    (TxFieldTag::Null, Nonce, 0, 1, 0),
+                    (Nonce, GasPrice, 1, 1, 0),
+                    (GasPrice, Gas, 1, 1, 0),
+                    (Gas, CallerAddress, 1, 1, 0),
+                    (CallerAddress, CalleeAddress, 1, 1, 0),
+                    (CalleeAddress, IsCreate, 1, 1, 0),
+                    (IsCreate, TxFieldTag::Value, 1, 1, 0),
+                    (TxFieldTag::Value, CallDataRLC, 1, 1, 0),
+                    (CallDataRLC, CallDataLength, 1, 1, 0),
+                    (CallDataLength, CallDataGasCost, 1, 1, 0),
+                    (CallDataGasCost, TxDataGasCost, 1, 1, 0),
+                    (TxDataGasCost, ChainID, 1, 1, 0),
+                    (ChainID, SigV, 1, 1, 0),
+                    (SigV, SigR, 1, 1, 0),
+                    (SigR, SigS, 1, 1, 0),
+                    (SigS, TxSignLength, 1, 1, 0),
+                    (TxSignLength, TxSignRLC, 1, 1, 0),
+                    (TxSignRLC, TxSignHash, 1, 1, 0),
+                    (TxSignHash, TxHashLength, 1, 1, 0),
+                    (TxHashLength, TxHashRLC, 1, 1, 0),
+                    (TxHashRLC, TxFieldTag::TxHash, 1, 1, 0),
+                    (TxFieldTag::TxHash, TxFieldTag::TxType, 1, 1, 0),
+                    (TxFieldTag::TxType, AccessListAddressesLen, 1, 1, 0),
+                    (AccessListAddressesLen, AccessListStorageKeysLen, 1, 1, 0),
+                    (AccessListStorageKeysLen, AccessListRLC, 1, 1, 0),
+                    (AccessListRLC, MaxFeePerGas, 1, 1, 0),
+                    (MaxFeePerGas, MaxPriorityFeePerGas, 1, 1, 0),
+                    (MaxPriorityFeePerGas, BlockNumber, 1, 1, 0),
+                    // Transition into dynamic section of tx_table
+                    (BlockNumber, Nonce, 0, 1, 0),
+                    (BlockNumber, CallData, 1, 1, 1),
+                    (BlockNumber, CallData, 0, 1, 1),
+                    (BlockNumber, TxFieldTag::AccessListAddress, 1, 1, 1),
+                    (BlockNumber, TxFieldTag::AccessListAddress, 0, 1, 1),
+                    // Transition between dynamic tags of tx_table
+                    (CallData, CallData, 1, 0, 0),
+                    (CallData, CallData, 0, 1, 0),
+                    (CallData, TxFieldTag::AccessListAddress, 1, 1, 0),
+                    (CallData, TxFieldTag::AccessListAddress, 0, 1, 0),
+                    (
+                        TxFieldTag::AccessListAddress,
+                        TxFieldTag::AccessListAddress,
+                        1,
+                        0,
+                        0,
+                    ),
+                    (
+                        TxFieldTag::AccessListAddress,
+                        TxFieldTag::AccessListAddress,
+                        0,
+                        1,
+                        0,
+                    ),
+                    (
+                        TxFieldTag::AccessListAddress,
+                        TxFieldTag::AccessListStorageKey,
+                        1,
+                        0,
+                        0,
+                    ),
+                    (
+                        TxFieldTag::AccessListStorageKey,
+                        TxFieldTag::AccessListStorageKey,
+                        1,
+                        0,
+                        0,
+                    ),
+                    (
+                        TxFieldTag::AccessListStorageKey,
+                        TxFieldTag::AccessListAddress,
+                        1,
+                        0,
+                        0,
+                    ),
+                    (
+                        TxFieldTag::AccessListStorageKey,
+                        TxFieldTag::AccessListAddress,
+                        0,
+                        1,
+                        0,
+                    ),
+                    (TxFieldTag::AccessListAddress, CallData, 0, 1, 0),
+                    (TxFieldTag::AccessListStorageKey, CallData, 0, 1, 0),
+                    // Continue padding. Padding has the Calldata tag
+                    (CallData, CallData, 1, 1, 0),
+                ];
+
+                for (offset, scenario) in transition_scenarios.into_iter().enumerate() {
+                    for (&column, value) in <TxRomTable as LookupTable<F>>::fixed_columns(self)
+                        .iter()
+                        .zip(TxRomTableRow::from(scenario).values::<F>().into_iter())
+                    {
+                        region.assign_fixed(
+                            || format!("rom table row: offset = {offset}"),
+                            column,
+                            offset,
+                            || value,
+                        )?;
+                    }
+                }
+
+                Ok(())
+            },
+        )
+    }
+}
+
 /// Config for TxCircuit
 #[derive(Clone, Debug)]
 pub struct TxCircuitConfig<F: Field> {
     minimum_rows: usize,
 
-    // This is only true at the first row of calldata part of tx table
-    q_calldata_first: Column<Fixed>,
-    q_calldata_last: Column<Fixed>,
+    // This is only true at the first row of dynamic part of tx table
+    q_dynamic_first: Column<Fixed>,
+    q_dynamic_last: Column<Fixed>,
     // A selector which is enabled at 1st row
     q_first: Column<Fixed>,
     tx_table: TxTable,
@@ -200,7 +399,6 @@ pub struct TxCircuitConfig<F: Field> {
     is_padding_tx: Column<Advice>,
     /// Tx id must be no greater than cum_num_txs
     tx_id_cmp_cum_num_txs: ComparatorConfig<F, 2>,
-    tx_id_gt_prev_cnt: LtConfig<F, 2>,
     /// Cumulative number of txs up to a block
     cum_num_txs: Column<Advice>,
     /// Number of txs in a block
@@ -240,6 +438,8 @@ pub struct TxCircuitConfig<F: Field> {
     chunk_txbytes_rlc: Column<Advice>,
     chunk_txbytes_len_acc: Column<Advice>,
     pow_of_rand: Column<Advice>,
+    /// ROM table
+    tx_rom_table: TxRomTable,
 
     _marker: PhantomData<F>,
 }
@@ -287,8 +487,8 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         let q_enable = tx_table.q_enable;
 
         let q_first = meta.fixed_column();
-        let q_calldata_first = meta.fixed_column();
-        let q_calldata_last = meta.fixed_column();
+        let q_dynamic_first = meta.fixed_column();
+        let q_dynamic_last = meta.fixed_column();
         // Since we allow skipping l1 txs that could cause potential circuit overflow,
         // the num_all_txs (num_l1_msgs + num_l2_txs) in the input to get chunk data hash
         // does not necessarily equal to num_txs (self.txs.len()) in block table.
@@ -361,7 +561,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         let is_access_list = meta.advice_column();
         let is_access_list_address = meta.advice_column();
         let is_access_list_storage_key = meta.advice_column();
-        let field_rlc = meta.advice_column();
+        let field_rlc = meta.advice_column_in(SecondPhase);
 
         // Chunk bytes accumulator
         let is_chunk_bytes = meta.advice_column();
@@ -436,13 +636,6 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         is_tx_tag!(is_max_fee_per_gas, MaxFeePerGas);
         is_tx_tag!(is_max_priority_fee_per_gas, MaxPriorityFeePerGas);
 
-        let tx_id_unchanged = IsEqualChip::configure(
-            meta,
-            |meta| meta.query_fixed(q_enable, Rotation::cur()),
-            |meta| meta.query_advice(tx_table.tx_id, Rotation::cur()),
-            |meta| meta.query_advice(tx_table.tx_id, Rotation::next()),
-        );
-
         // testing if value is zero for tags
         let value_is_zero = IsZeroChip::configure(
             meta,
@@ -456,6 +649,9 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                         is_data_length(meta),
                         // if call data byte is zero, then gas_cost = 4 (16 otherwise)
                         is_data(meta),
+                        // if access_list_addresses_len is zero, then access_list_storage_keys_len
+                        // = 0 and access_list_rlc = 0
+                        is_access_list_addresses_len(meta),
                     ]),
                 ])
             },
@@ -508,6 +704,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                         ("num_txs", num_txs),
                         ("cum_num_txs", cum_num_txs),
                         ("num_all_txs_acc", num_all_txs_acc),
+                        ("tx_nonce", tx_nonce),
                         // is_l1_msg does not need to spread out as it's extracted from tx_type
 
                         // these do not need to spread out as they are related to tx_table.tag
@@ -524,11 +721,55 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 },
             );
 
+            let is_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::cur()),
+                meta.query_advice(is_access_list, Rotation::cur()),
+            ]);
+            let is_next_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::next()),
+                meta.query_advice(is_access_list, Rotation::next()),
+            ]);
             cb.gate(and::expr([
                 meta.query_fixed(q_enable, Rotation::cur()),
-                not::expr(meta.query_advice(is_calldata, Rotation::cur())),
-                not::expr(meta.query_advice(is_calldata, Rotation::next())),
+                not::expr(is_tag_dynamic),
+                not::expr(is_next_tag_dynamic),
             ]))
+        });
+
+        // Table for ensuring correct tx table tag transition
+        let tx_rom_table = TxRomTable::construct(meta);
+
+        let tx_id_unchanged = IsEqualChip::configure(
+            meta,
+            |meta| meta.query_fixed(q_enable, Rotation::cur()),
+            |meta| meta.query_advice(tx_table.tx_id, Rotation::cur()),
+            |meta| meta.query_advice(tx_table.tx_id, Rotation::next()),
+        );
+
+        meta.lookup_any("tx table tag transition lookup", |meta| {
+            let cond = and::expr([
+                meta.query_fixed(q_enable, Rotation::cur()),
+                meta.query_fixed(q_enable, Rotation::next()),
+                not::expr(meta.query_fixed(q_first, Rotation::next())),
+            ]);
+            vec![
+                meta.query_advice(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::next()),
+                tx_id_unchanged.is_equal_expression.clone(),
+                select::expr(
+                    sum::expr([
+                        meta.query_advice(is_calldata, Rotation::cur()),
+                        meta.query_advice(is_access_list, Rotation::cur()),
+                    ]),
+                    meta.query_advice(is_final, Rotation::cur()),
+                    1.expr(),
+                ),
+                meta.query_fixed(q_dynamic_first, Rotation::next()),
+            ]
+            .into_iter()
+            .zip(tx_rom_table.table_exprs(meta))
+            .map(|(arg, table)| (cond.expr() * arg, table))
+            .collect()
         });
 
         // Basic constraints
@@ -662,6 +903,27 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 },
             );
 
+            // AccessListAddressLen = 0 must force AccessListStorageKeysLen = 0 and AccessListRLC =
+            // 0
+            cb.condition(
+                and::expr([
+                    is_access_list_addresses_len(meta),
+                    meta.query_advice(is_none, Rotation::cur()),
+                ]),
+                |cb| {
+                    cb.require_equal(
+                        "AccessListStorageKeysLen = 0",
+                        meta.query_advice(tx_table.value, Rotation::next()),
+                        0.expr(),
+                    );
+                    cb.require_equal(
+                        "AccessListRLC = 0",
+                        meta.query_advice(tx_table.value, Rotation(2)),
+                        0.expr(),
+                    );
+                },
+            );
+
             cb.gate(meta.query_fixed(q_enable, Rotation::cur()))
         });
 
@@ -675,6 +937,20 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 "is_calldata",
                 is_data(meta),
                 meta.query_advice(is_calldata, Rotation::cur()),
+            );
+
+            // Ensure continuity of is_calldata when is_final is false
+            cb.condition(
+                and::expr([
+                    meta.query_advice(is_calldata, Rotation::cur()),
+                    not::expr(meta.query_advice(is_final, Rotation::cur())),
+                ]),
+                |cb| {
+                    cb.require_zero(
+                        "is_calldata is continuous when is_final is false.",
+                        meta.query_advice(is_calldata, Rotation::next()) - 1.expr(),
+                    )
+                },
             );
 
             cb.gate(meta.query_fixed(q_enable, Rotation::cur()))
@@ -702,6 +978,20 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                     meta.query_advice(is_access_list_storage_key, Rotation::cur()),
                 ]),
                 meta.query_advice(is_access_list, Rotation::cur()),
+            );
+
+            // Ensure continuity of is_access_list when is_final is false
+            cb.condition(
+                and::expr([
+                    meta.query_advice(is_access_list, Rotation::cur()),
+                    not::expr(meta.query_advice(is_final, Rotation::cur())),
+                ]),
+                |cb| {
+                    cb.require_zero(
+                        "is_access_list is continuous when is_final is false",
+                        meta.query_advice(is_access_list, Rotation::next()) - 1.expr(),
+                    )
+                },
             );
 
             cb.gate(meta.query_fixed(q_enable, Rotation::cur()))
@@ -997,7 +1287,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         Self::configure_lookups(
             meta,
             q_enable,
-            q_calldata_first,
+            q_dynamic_first,
             rlp_tag,
             tx_value_rlc,
             tx_value_length,
@@ -1095,11 +1385,16 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         meta.lookup("block_num is non-decreasing till padding txs", |meta| {
             // Block nums like this [1, 3, 5, 4, 0] is rejected by this. But [1, 2, 3, 5, 0] is
             // acceptable.
+            let is_next_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::next()),
+                meta.query_advice(is_access_list, Rotation::next()),
+            ]);
+
             let lookup_condition = and::expr([
                 // next row should not belong to a padding tx
                 not::expr(meta.query_advice(is_padding_tx, Rotation::next())),
-                // next row should not be in the calldata region
-                not::expr(meta.query_advice(is_calldata, Rotation::next())),
+                // next row should also belong to fixed region
+                not::expr(is_next_tag_dynamic),
                 meta.query_advice(is_tag_block_num, Rotation::cur()),
             ]);
 
@@ -1112,8 +1407,18 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         meta.create_gate("num_all_txs in a block", |meta| {
             let mut cb = BaseConstraintBuilder::default();
             let queue_index = tx_nonce;
+
+            let is_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::cur()),
+                meta.query_advice(is_access_list, Rotation::cur()),
+            ]);
+            let is_next_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::next()),
+                meta.query_advice(is_access_list, Rotation::next()),
+            ]);
+
             // first tx in tx table
-            cb.condition(meta.query_fixed(q_first, Rotation::next()), |cb| {
+            cb.condition(meta.query_fixed(q_first, Rotation::cur()), |cb| {
                 cb.require_equal(
                     "num_all_txs_acc = is_l1_msg ? queue_index - total_l1_popped_before + 1 : 1",
                     meta.query_advice(num_all_txs_acc, Rotation::cur()),
@@ -1132,7 +1437,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             cb.condition(
                 and::expr([
                     // see the comment below
-                    not::expr(meta.query_advice(is_calldata, Rotation::next())),
+                    not::expr(is_next_tag_dynamic.clone()),
                     block_num_unchanged.expr(),
                 ]),
                 |cb| {
@@ -1175,7 +1480,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                     // (e.g. block_num, tx_type, is_padding_tx, ....). The witness assignment of
                     // calldata part need only make sure that (is_final,
                     // calldata_gas_cost_acc) are correctly assigned.
-                    not::expr(meta.query_advice(is_calldata, Rotation::next())),
+                    not::expr(is_next_tag_dynamic),
                     not::expr(block_num_unchanged.expr()),
                 ]),
                 |cb| {
@@ -1211,7 +1516,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             cb.gate(and::expr([
                 meta.query_fixed(tx_table.q_enable, Rotation::cur()),
                 // we are in the fixed part of tx table
-                not::expr(meta.query_advice(is_calldata, Rotation::cur())),
+                not::expr(is_tag_dynamic),
                 // calculate num_all_txs at tag = BlockNum row
                 meta.query_advice(is_tag_block_num, Rotation::cur()),
             ]))
@@ -1244,6 +1549,39 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             let is_tag_caller_addr = is_caller_addr(meta);
             let mut cb = BaseConstraintBuilder::default();
 
+            // is_padding_tx is boolean
+            cb.require_boolean(
+                "is_padding_tx is boolean",
+                meta.query_advice(is_padding_tx, Rotation::cur()),
+            );
+
+            // is_padding_tx starts with 0
+            cb.condition(meta.query_fixed(q_first, Rotation::cur()), |cb| {
+                cb.require_zero(
+                    "is_padding_tx = 0 on the first row",
+                    meta.query_advice(is_padding_tx, Rotation::cur()),
+                );
+            });
+
+            // is_padding_tx changes only once from 0 -> 1
+            cb.condition(
+                and::expr([
+                    not::expr(meta.query_fixed(q_first, Rotation::next())),
+                    not::expr(sum::expr([
+                        meta.query_advice(is_calldata, Rotation::next()),
+                        meta.query_advice(is_access_list, Rotation::next()),
+                    ])),
+                ]),
+                |cb| {
+                    cb.require_zero(
+                        "is_padding_tx changes from 0 -> 1 only once in the fixed section",
+                        meta.query_advice(is_padding_tx, Rotation::cur())
+                            * (meta.query_advice(is_padding_tx, Rotation::next())
+                                - meta.query_advice(is_padding_tx, Rotation::cur())),
+                    );
+                },
+            );
+
             // if tag == CallerAddress
             cb.condition(is_tag_caller_addr.expr(), |cb| {
                 cb.require_equal(
@@ -1252,27 +1590,9 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                     value_is_zero.expr(Rotation::cur())(meta),
                 );
             });
+
             cb.gate(meta.query_fixed(q_enable, Rotation::cur()))
         });
-
-        // prev block's cum_num_txs < tx_id
-        let tx_id_gt_prev_cnt = LtChip::configure(
-            meta,
-            |meta| {
-                and::expr([
-                    meta.query_fixed(q_enable, Rotation::cur()),
-                    meta.query_advice(is_tag_block_num, Rotation::cur()),
-                ])
-            },
-            |meta| {
-                let num_txs = meta.query_advice(num_txs, Rotation::cur());
-                let cum_num_txs = meta.query_advice(cum_num_txs, Rotation::cur());
-
-                cum_num_txs - num_txs
-            },
-            |meta| meta.query_advice(tx_table.tx_id, Rotation::cur()),
-            u8_table.into(),
-        );
 
         // last non-padding tx must have tx_id == cum_num_txs
         meta.create_gate(
@@ -1315,7 +1635,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         meta.create_gate("tx_id <= cum_num_txs", |meta| {
             let mut cb = BaseConstraintBuilder::default();
 
-            let (lt_expr, eq_expr) = tx_id_cmp_cum_num_txs.expr(meta, None);
+            let (lt_expr, eq_expr) = tx_id_cmp_cum_num_txs.expr(meta);
             cb.condition(is_block_num(meta), |cb| {
                 cb.require_equal("lt or eq", sum::expr([lt_expr, eq_expr]), true.expr());
             });
@@ -1383,10 +1703,10 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         });
 
         meta.create_gate("last row of call data", |meta| {
-            let q_calldata_last = meta.query_fixed(q_calldata_last, Rotation::cur());
+            let q_dynamic_last = meta.query_fixed(q_dynamic_last, Rotation::cur());
             let is_final = meta.query_advice(is_final, Rotation::cur());
 
-            vec![(q_calldata_last * (is_final - true.expr()))]
+            vec![(q_dynamic_last * (is_final - true.expr()))]
         });
         meta.create_gate("calldata_byte == tx_table.value", |meta| {
             let mut cb = BaseConstraintBuilder::default();
@@ -1403,34 +1723,9 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             cb.gate(meta.query_fixed(tx_table.q_enable, Rotation::cur()))
         });
 
-        meta.create_gate("tx call data init", |meta| {
-            let mut cb = BaseConstraintBuilder::default();
-
-            let value_is_zero = value_is_zero.expr(Rotation::cur())(meta);
-            let gas_cost = select::expr(value_is_zero, 4.expr(), 16.expr());
-
-            cb.require_equal(
-                "index == 0",
-                meta.query_advice(tx_table.index, Rotation::cur()),
-                0.expr(),
-            );
-            cb.require_equal(
-                "calldata_gas_cost_acc == gas_cost",
-                meta.query_advice(calldata_gas_cost_acc, Rotation::cur()),
-                gas_cost,
-            );
-            cb.require_equal(
-                "section_rlc == byte",
-                meta.query_advice(section_rlc, Rotation::cur()),
-                meta.query_advice(tx_table.value, Rotation::cur()),
-            );
-
-            cb.gate(and::expr([
-                meta.query_fixed(q_calldata_first, Rotation::cur()),
-                not::expr(tx_id_is_zero.expr(Rotation::cur())(meta)),
-            ]))
-        });
-
+        ////////////////////////////////////////////////////////////////////////
+        ////////////  Calldata bytes dynamic section conditions ////////////////
+        ////////////////////////////////////////////////////////////////////////
         meta.create_gate("tx call data bytes", |meta| {
             let mut cb = BaseConstraintBuilder::default();
 
@@ -1466,10 +1761,6 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 );
             });
 
-            // End of calldata bytes transition:
-            // on the final call data byte, must transition to another
-            // calldata section or an access list section for the same tx
-
             // on the final call data byte, if there's no access list, tx_id must change.
             cb.condition(
                 and::expr([
@@ -1484,12 +1775,77 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 },
             );
 
+            cb.gate(and::expr(vec![
+                meta.query_fixed(q_enable, Rotation::cur()),
+                meta.query_advice(is_calldata, Rotation::cur()),
+                not::expr(meta.query_advice(is_tx_id_zero, Rotation::cur())),
+            ]))
+        });
+
+        ////////////////////////////////////////////////////////////////////////
+        ////////  Dynamic Section Init and Transition Conditions  //////////////
+        ////////////////////////////////////////////////////////////////////////
+        meta.create_gate("Dynamic section init with calldata", |meta| {
+            let mut cb = BaseConstraintBuilder::default();
+
+            let value_is_zero = value_is_zero.expr(Rotation::cur())(meta);
+            let gas_cost = select::expr(value_is_zero, 4.expr(), 16.expr());
+
+            cb.require_equal(
+                "index == 0",
+                meta.query_advice(tx_table.index, Rotation::cur()),
+                0.expr(),
+            );
+            cb.require_equal(
+                "calldata_gas_cost_acc == gas_cost",
+                meta.query_advice(calldata_gas_cost_acc, Rotation::cur()),
+                gas_cost,
+            );
+            cb.require_equal(
+                "section_rlc == byte",
+                meta.query_advice(section_rlc, Rotation::cur()),
+                meta.query_advice(tx_table.value, Rotation::cur()),
+            );
+
+            cb.gate(and::expr([
+                meta.query_fixed(q_dynamic_first, Rotation::cur()),
+                not::expr(tx_id_is_zero.expr(Rotation::cur())(meta)),
+                meta.query_advice(is_calldata, Rotation::cur()),
+            ]))
+        });
+
+        meta.create_gate("Dynamic section init with access_list", |meta| {
+            let mut cb = BaseConstraintBuilder::default();
+
+            cb.require_equal(
+                "al_idx starts with 1",
+                meta.query_advice(al_idx, Rotation::cur()),
+                1.expr(),
+            );
+            cb.require_zero(
+                "sks_acc starts with 0",
+                meta.query_advice(sks_acc, Rotation::cur()),
+            );
+            cb.require_equal(
+                "section_rlc::cur == field_rlc::cur",
+                meta.query_advice(section_rlc, Rotation::cur()),
+                meta.query_advice(field_rlc, Rotation::cur()),
+            );
+
+            cb.gate(and::expr([
+                meta.query_fixed(q_dynamic_first, Rotation::cur()),
+                not::expr(tx_id_is_zero.expr(Rotation::cur())(meta)),
+                meta.query_advice(is_access_list, Rotation::cur()),
+            ]))
+        });
+
+        meta.create_gate("Dynamic section transitions", |meta| {
+            let mut cb = BaseConstraintBuilder::default();
+            let is_final_cur = meta.query_advice(is_final, Rotation::cur());
+
+            // Dynamic section transition #1: into calldata
             cb.condition(
-                and::expr([
-                    is_final_cur.clone(),
-                    not::expr(meta.query_advice(is_tx_id_zero, Rotation::next())),
-                    meta.query_advice(is_calldata, Rotation::next()),
-                ]),
+                and::expr([meta.query_advice(is_calldata, Rotation::next())]),
                 |cb| {
                     let value_next_is_zero = value_is_zero.expr(Rotation::next())(meta);
                     let gas_cost_next = select::expr(value_next_is_zero, 4.expr(), 16.expr());
@@ -1512,39 +1868,33 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 },
             );
 
-            // Initialize the dynamic access list assignment section.
-            // Must follow immediately when the calldata section ends.
-            cb.condition(
-                and::expr([
-                    is_final_cur.expr(),
-                    meta.query_advice(is_access_list, Rotation::next()),
-                ]),
-                |cb| {
-                    cb.require_zero(
-                        "tx_id stays the same for access list section at is_final == 1",
-                        tx_id_unchanged.is_equal_expression.clone() - 1.expr(),
-                    );
-                    cb.require_equal(
-                        "al_idx starts with 1",
-                        meta.query_advice(al_idx, Rotation::next()),
-                        1.expr(),
-                    );
-                    cb.require_zero(
-                        "sks_acc starts with 0",
-                        meta.query_advice(sks_acc, Rotation::next()),
-                    );
-                    cb.require_equal(
-                        "section_rlc::cur == field_rlc::cur",
-                        meta.query_advice(section_rlc, Rotation::next()),
-                        meta.query_advice(field_rlc, Rotation::next()),
-                    );
-                },
-            );
+            // Dynamic section transition #2: into access_list
+            cb.condition(meta.query_advice(is_access_list, Rotation::next()), |cb| {
+                cb.require_equal(
+                    "al_idx starts with 1",
+                    meta.query_advice(al_idx, Rotation::next()),
+                    1.expr(),
+                );
+                cb.require_zero(
+                    "sks_acc starts with 0",
+                    meta.query_advice(sks_acc, Rotation::next()),
+                );
+                cb.require_equal(
+                    "section_rlc::cur == field_rlc::cur",
+                    meta.query_advice(section_rlc, Rotation::next()),
+                    meta.query_advice(field_rlc, Rotation::next()),
+                );
+            });
 
-            cb.gate(and::expr(vec![
+            cb.gate(and::expr([
                 meta.query_fixed(q_enable, Rotation::cur()),
-                meta.query_advice(is_calldata, Rotation::cur()),
+                sum::expr([
+                    meta.query_advice(is_access_list, Rotation::cur()),
+                    meta.query_advice(is_calldata, Rotation::cur()),
+                ]),
                 not::expr(meta.query_advice(is_tx_id_zero, Rotation::cur())),
+                not::expr(meta.query_advice(is_tx_id_zero, Rotation::next())),
+                is_final_cur,
             ]))
         });
 
@@ -1558,57 +1908,94 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             cb.require_boolean("is_final is boolean", is_final_cur.clone());
 
             // section_rlc accumulation factor, rand^20 for addresses or rand^32 for storage keys
-            let r20 = [1, 0, 1, 0, 0].iter()
-                .fold(1.expr(), |acc: Expression<F>, bit| acc.clone() * acc * if *bit > 0 { challenges.keccak_input() } else { 1.expr() });
-            let r32 = [1, 0, 0, 0, 0, 0].iter()
-                .fold(1.expr(), |acc: Expression<F>, bit| acc.clone() * acc * if *bit > 0 { challenges.keccak_input() } else { 1.expr() });
+            let r20 = [1, 0, 1, 0, 0]
+                .iter()
+                .fold(1.expr(), |acc: Expression<F>, bit| {
+                    acc.clone()
+                        * acc
+                        * if *bit > 0 {
+                            challenges.keccak_input()
+                        } else {
+                            1.expr()
+                        }
+                });
+            let r32 = [1, 0, 0, 0, 0, 0]
+                .iter()
+                .fold(1.expr(), |acc: Expression<F>, bit| {
+                    acc.clone()
+                        * acc
+                        * if *bit > 0 {
+                            challenges.keccak_input()
+                        } else {
+                            1.expr()
+                        }
+                });
 
             // current tag is AccessListAddress
             cb.condition(
                 and::expr([
                     not::expr(is_final_cur.clone()),
-                    meta.query_advice(is_access_list_address, Rotation::cur())
+                    meta.query_advice(is_access_list_address, Rotation::cur()),
                 ]),
-            |cb| {
-                cb.require_equal(
-                    "index = al_idx",
-                    meta.query_advice(al_idx, Rotation::cur()),
-                    meta.query_advice(tx_table.index, Rotation::cur()),
-                );
-                cb.require_equal(
-                    "access_list_address = value",
-                    meta.query_advice(tx_table.value, Rotation::cur()),
-                    meta.query_advice(tx_table.access_list_address, Rotation::cur()),
-                );
-                cb.require_zero(
-                    "sk_idx = 0",
-                    meta.query_advice(sk_idx, Rotation::cur()),
-                );
-                cb.require_equal(
-                    "section_rlc accumulation: r = rand^20, section_rlc' = section_rlc * r + field_rlc'",
-                    meta.query_advice(section_rlc, Rotation::next()),
-                    meta.query_advice(section_rlc, Rotation::cur()) * r20
-                        + meta.query_advice(field_rlc, Rotation::next()),
-                );
-            });
+                |cb| {
+                    cb.require_equal(
+                        "index = al_idx",
+                        meta.query_advice(al_idx, Rotation::cur()),
+                        meta.query_advice(tx_table.index, Rotation::cur()),
+                    );
+                    cb.require_equal(
+                        "access_list_address = value",
+                        meta.query_advice(tx_table.value, Rotation::cur()),
+                        meta.query_advice(tx_table.access_list_address, Rotation::cur()),
+                    );
+                    cb.require_zero("sk_idx = 0", meta.query_advice(sk_idx, Rotation::cur()));
+                    cb.require_equal(
+                        "section_rlc' = section_rlc * r ^ pow(len::next) + field_rlc'",
+                        meta.query_advice(section_rlc, Rotation::next()),
+                        meta.query_advice(section_rlc, Rotation::cur())
+                            * select::expr(
+                                meta.query_advice(is_access_list_storage_key, Rotation::next()),
+                                r32.clone(),
+                                r20.clone(),
+                            )
+                            + meta.query_advice(field_rlc, Rotation::next()),
+                    );
+                },
+            );
 
             // current tag is AccessListStorageKey
             cb.condition(
                 and::expr([
                     not::expr(is_final_cur.clone()),
-                    meta.query_advice(is_access_list_storage_key, Rotation::cur())
+                    meta.query_advice(is_access_list_storage_key, Rotation::cur()),
                 ]),
-            |cb| {
+                |cb| {
+                    cb.require_equal(
+                        "index = sks_acc",
+                        meta.query_advice(sks_acc, Rotation::cur()),
+                        meta.query_advice(tx_table.index, Rotation::cur()),
+                    );
+                    cb.require_equal(
+                        "section_rlc' = section_rlc * r ^ pow(len::next) + field_rlc'",
+                        meta.query_advice(section_rlc, Rotation::next()),
+                        meta.query_advice(section_rlc, Rotation::cur())
+                            * select::expr(
+                                meta.query_advice(is_access_list_storage_key, Rotation::next()),
+                                r32.clone(),
+                                r20.clone(),
+                            )
+                            + meta.query_advice(field_rlc, Rotation::next()),
+                    );
+                },
+            );
+
+            // When is_final_cur is false, tx_id stays the same for either AccessList or
+            // AccessListStorageKey
+            cb.condition(not::expr(is_final_cur.clone()), |cb| {
                 cb.require_equal(
-                    "index = sks_acc",
-                    meta.query_advice(sks_acc, Rotation::cur()),
-                    meta.query_advice(tx_table.index, Rotation::cur()),
-                );
-                cb.require_equal(
-                    "section_rlc accumulation: r = rand^32, section_rlc' = section_rlc * r + field_rlc'",
-                    meta.query_advice(section_rlc, Rotation::next()),
-                    meta.query_advice(section_rlc, Rotation::cur()) * r32
-                        + meta.query_advice(field_rlc, Rotation::next()),
+                    "tx_id::next == tx_id::cur",
+                    tx_id_unchanged.is_equal_expression.clone(),
+                    1.expr(),
                 );
             });
 
@@ -1616,70 +2003,64 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             cb.condition(
                 and::expr([
                     not::expr(is_final_cur.clone()),
-                    meta.query_advice(is_access_list_address, Rotation::next())
+                    meta.query_advice(is_access_list_address, Rotation::next()),
                 ]),
-            |cb| {
-                cb.require_equal(
-                    "sks_acc' = sks_acc",
-                    meta.query_advice(sks_acc, Rotation::cur()),
-                    meta.query_advice(sks_acc, Rotation::next()),
-                );
-                cb.require_equal(
-                    "al_idx' = al_idx + 1",
-                    meta.query_advice(al_idx, Rotation::cur()) + 1.expr(),
-                    meta.query_advice(al_idx, Rotation::next()),
-                );
-            });
+                |cb| {
+                    cb.require_equal(
+                        "sks_acc' = sks_acc",
+                        meta.query_advice(sks_acc, Rotation::cur()),
+                        meta.query_advice(sks_acc, Rotation::next()),
+                    );
+                    cb.require_equal(
+                        "al_idx' = al_idx + 1",
+                        meta.query_advice(al_idx, Rotation::cur()) + 1.expr(),
+                        meta.query_advice(al_idx, Rotation::next()),
+                    );
+                },
+            );
 
             // within same tx, next tag is AccessListStorageKey
             cb.condition(
                 and::expr([
                     not::expr(is_final_cur.clone()),
-                    meta.query_advice(is_access_list_storage_key, Rotation::next())
-                ]),
-            |cb| {
-                cb.require_equal(
-                    "sks_acc' = sks_acc + 1",
-                    meta.query_advice(sks_acc, Rotation::cur()) + 1.expr(),
-                    meta.query_advice(sks_acc, Rotation::next()),
-                );
-                cb.require_equal(
-                    "sk_idx' = sk_idx + 1",
-                    meta.query_advice(sk_idx, Rotation::cur()) + 1.expr(),
-                    meta.query_advice(sk_idx, Rotation::next()),
-                );
-                cb.require_equal(
-                    "al_idx' = al_idx",
-                    meta.query_advice(al_idx, Rotation::cur()),
-                    meta.query_advice(al_idx, Rotation::next()),
-                );
-                cb.require_equal(
-                    "access_list_address' = access_list_address",
-                    meta.query_advice(tx_table.access_list_address, Rotation::cur()),
-                    meta.query_advice(tx_table.access_list_address, Rotation::next()),
-                );
-            });
-
-            // End conditions for the dynamic access list section, if the dynamic calldata section for the next tx doesn't exist
-            // For a regular access list section that immediately follows a calldata section, the init idx
-            // conditions are defined using the tail location of calldata (in the previous constraint block)
-            cb.condition(
-                and::expr([
-                    is_final_cur,
-                    not::expr(tx_id_is_zero.expr(Rotation::next())(meta)),
-                    meta.query_advice(is_access_list, Rotation::next()),
+                    meta.query_advice(is_access_list_storage_key, Rotation::next()),
                 ]),
                 |cb| {
                     cb.require_equal(
-                        "al_idx starts with 1",
-                        meta.query_advice(al_idx, Rotation::next()),
-                        1.expr()
-                    );
-                    cb.require_zero(
-                        "sks_acc starts with 0",
+                        "sks_acc' = sks_acc + 1",
+                        meta.query_advice(sks_acc, Rotation::cur()) + 1.expr(),
                         meta.query_advice(sks_acc, Rotation::next()),
                     );
-                }
+                    cb.require_equal(
+                        "sk_idx' = sk_idx + 1",
+                        meta.query_advice(sk_idx, Rotation::cur()) + 1.expr(),
+                        meta.query_advice(sk_idx, Rotation::next()),
+                    );
+                    cb.require_equal(
+                        "al_idx' = al_idx",
+                        meta.query_advice(al_idx, Rotation::cur()),
+                        meta.query_advice(al_idx, Rotation::next()),
+                    );
+                    cb.require_equal(
+                        "access_list_address' = access_list_address",
+                        meta.query_advice(tx_table.access_list_address, Rotation::cur()),
+                        meta.query_advice(tx_table.access_list_address, Rotation::next()),
+                    );
+                },
+            );
+
+            // When is_final_cur is true, the tx_id must change for the next dynamic section
+            cb.condition(
+                and::expr([
+                    is_final_cur.clone(),
+                    not::expr(tx_id_is_zero.expr(Rotation::next())(meta)),
+                ]),
+                |cb| {
+                    cb.require_zero(
+                        "tx_id changes at is_final == 1",
+                        tx_id_unchanged.is_equal_expression.clone(),
+                    );
+                },
             );
 
             cb.gate(and::expr(vec![
@@ -1738,9 +2119,20 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 },
             );
 
-            // TODO:
-            //  4. eip1559 tx: v Є {0, 1}
-            //  5. eip2930 tx: v Є {0, 1}
+            // 4. EPI1559/2930: v Є {0, 1}
+            cb.condition(
+                and::expr([
+                    is_chain_id.expr(),
+                    sum::expr([
+                        tx_type_bits.value_equals(Eip1559, Rotation::cur())(meta),
+                        tx_type_bits.value_equals(Eip2930, Rotation::cur())(meta),
+                    ]),
+                ]),
+                |cb| {
+                    let v = meta.query_advice(tx_table.value, Rotation::next());
+                    cb.require_boolean("v Є {0, 1}", v);
+                },
+            );
 
             cb.gate(meta.query_fixed(q_enable, Rotation::cur()))
         });
@@ -1894,6 +2286,11 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         meta.create_gate("One chunk_txbytes_len_acc, chunk_txbytes_rlc value and pow_of_rand for each tx (in fixed section)", |meta| {
             let mut cb = BaseConstraintBuilder::default();
 
+            let is_tag_dynamic = sum::expr([
+                meta.query_advice(is_calldata, Rotation::cur()),
+                meta.query_advice(is_access_list, Rotation::cur()),
+            ]);
+
             // chunk_txbytes_len_acc, chunk_txbytes_rlc and pow_of_rand stay the same for the same tx
             cb.require_equal(
                 "chunk_txbytes_len_acc' == chunk_txbytes_len_acc",
@@ -1915,7 +2312,8 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
                 meta.query_fixed(q_enable, Rotation::cur()),
                 not::expr(meta.query_fixed(q_first, Rotation::cur())),
                 not::expr(is_nonce(meta)),
-                not::expr(meta.query_advice(is_calldata, Rotation::cur()))
+                // we're in the fixed section
+                not::expr(is_tag_dynamic),
             ]))
         });
 
@@ -1924,8 +2322,8 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
         Self {
             minimum_rows: meta.minimum_rows(),
             q_first,
-            q_calldata_first,
-            q_calldata_last,
+            q_dynamic_first,
+            q_dynamic_last,
             tx_tag_bits: tag_bits,
             tx_type,
             tx_type_bits,
@@ -1942,7 +2340,6 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             is_tx_id_zero,
             is_caller_address,
             tx_id_cmp_cum_num_txs,
-            tx_id_gt_prev_cnt,
             cum_num_txs,
             is_padding_tx,
             lookup_conditions,
@@ -1980,6 +2377,7 @@ impl<F: Field> SubCircuitConfig<F> for TxCircuitConfig<F> {
             chunk_txbytes_rlc,
             chunk_txbytes_len_acc,
             pow_of_rand,
+            tx_rom_table,
             _marker: PhantomData,
             num_txs,
         }
@@ -1992,7 +2390,7 @@ impl<F: Field> TxCircuitConfig<F> {
     fn configure_lookups(
         meta: &mut ConstraintSystem<F>,
         q_enable: Column<Fixed>,
-        q_calldata_first: Column<Fixed>,
+        q_dynamic_first: Column<Fixed>,
         rlp_tag: Column<Advice>,
         tx_value_rlc: Column<Advice>,
         tx_value_length: Column<Advice>,
@@ -2058,7 +2456,7 @@ impl<F: Field> TxCircuitConfig<F> {
             .into_iter()
             .zip(vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(calldata_gas_cost_acc, Rotation::cur()),
                 meta.query_advice(is_final, Rotation::cur()),
             ])
@@ -2087,13 +2485,14 @@ impl<F: Field> TxCircuitConfig<F> {
             .into_iter()
             .zip(vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(tx_table.index, Rotation::cur()),
                 meta.query_advice(is_final, Rotation::cur()),
             ])
             .map(|(arg, table)| (enable.clone() * arg, table))
             .collect()
         });
+
         meta.lookup_any("lookup CallDataRLC in the calldata part", |meta| {
             let is_call_data = meta.query_advice(is_calldata, Rotation::cur());
             let section_rlc = meta.query_advice(section_rlc, Rotation::cur());
@@ -2111,7 +2510,7 @@ impl<F: Field> TxCircuitConfig<F> {
             ];
             let table_exprs = vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(tx_table.value, Rotation::cur()),
             ];
 
@@ -2121,6 +2520,7 @@ impl<F: Field> TxCircuitConfig<F> {
                 .map(|(input, table)| (input * enable.expr(), table))
                 .collect()
         });
+
         meta.lookup_any("lookup AccessListAddressLen in the TxTable", |meta| {
             let enable = and::expr([
                 meta.query_fixed(q_enable, Rotation::cur()),
@@ -2135,7 +2535,7 @@ impl<F: Field> TxCircuitConfig<F> {
             ];
             let table_exprs = vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(tx_table.value, Rotation::cur()),
             ];
 
@@ -2145,6 +2545,7 @@ impl<F: Field> TxCircuitConfig<F> {
                 .map(|(input, table)| (input * enable.expr(), table))
                 .collect()
         });
+
         meta.lookup_any("lookup AccessListStorageKeysLen in the TxTable", |meta| {
             let enable = and::expr([
                 meta.query_fixed(q_enable, Rotation::cur()),
@@ -2159,7 +2560,7 @@ impl<F: Field> TxCircuitConfig<F> {
             ];
             let table_exprs = vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(tx_table.value, Rotation::cur()),
             ];
 
@@ -2169,6 +2570,7 @@ impl<F: Field> TxCircuitConfig<F> {
                 .map(|(input, table)| (input * enable.expr(), table))
                 .collect()
         });
+
         meta.lookup_any("lookup AccessListRLC in the TxTable", |meta| {
             let enable = and::expr([
                 meta.query_fixed(q_enable, Rotation::cur()),
@@ -2183,7 +2585,7 @@ impl<F: Field> TxCircuitConfig<F> {
             ];
             let table_exprs = vec![
                 meta.query_advice(tx_table.tx_id, Rotation::cur()),
-                meta.query_fixed(tx_table.tag, Rotation::cur()),
+                meta.query_advice(tx_table.tag, Rotation::cur()),
                 meta.query_advice(tx_table.value, Rotation::cur()),
             ];
 
@@ -2193,6 +2595,7 @@ impl<F: Field> TxCircuitConfig<F> {
                 .map(|(input, table)| (input * enable.expr(), table))
                 .collect()
         });
+
         meta.lookup_any("is_final access list row should be present", |meta| {
             let enable = and::expr(vec![
                 meta.query_fixed(q_enable, Rotation::cur()),
@@ -2498,8 +2901,12 @@ impl<F: Field> TxCircuitConfig<F> {
             let sig_s = meta.query_advice(tx_table.value, Rotation(3));
             let sv_address = meta.query_advice(sv_address, Rotation::cur());
 
+            // include eip1559 and eip2930 type tx, sig_v is 0 or 1.
+
             let v = is_eip155(meta) * (sig_v.expr() - 2.expr() * chain_id - 35.expr())
-                + is_pre_eip155(meta) * (sig_v.expr() - 27.expr());
+                + is_pre_eip155(meta) * (sig_v.expr() - 27.expr())
+                + meta.query_advice(is_eip1559, Rotation::cur()) * sig_v.expr()
+                + meta.query_advice(is_eip2930, Rotation::cur()) * sig_v.expr();
 
             let input_exprs = vec![
                 1.expr(),     // q_enable = true
@@ -2562,7 +2969,7 @@ impl<F: Field> TxCircuitConfig<F> {
             // Isolate the last row in the fixed section, which belongs to the last tx in the chunk
             let enable = and::expr(vec![
                 meta.query_fixed(q_enable, Rotation::cur()),
-                meta.query_fixed(q_calldata_first, Rotation::cur()),
+                meta.query_fixed(q_dynamic_first, Rotation::cur()),
             ]);
 
             vec![
@@ -2857,21 +3264,31 @@ impl<F: Field> TxCircuitConfig<F> {
             ),
             (
                 AccessListAddressesLen,
-                None,
+                Some(RlpTableInputValue {
+                    tag: Null,
+                    is_none: access_list_address_size.is_zero(),
+                    be_bytes_len: 0,
+                    be_bytes_rlc: zero_rlc,
+                }),
                 Value::known(F::from(access_list_address_size)),
             ),
             (
                 AccessListStorageKeysLen,
-                None,
+                Some(RlpTableInputValue {
+                    tag: Null,
+                    is_none: access_list_storage_key_size.is_zero(),
+                    be_bytes_len: 0,
+                    be_bytes_rlc: zero_rlc,
+                }),
                 Value::known(F::from(access_list_storage_key_size)),
             ),
             (
                 AccessListRLC,
                 Some(RlpTableInputValue {
                     tag: RLC,
-                    is_none: false,
-                    be_bytes_len: 0,
-                    be_bytes_rlc: zero_rlc,
+                    is_none: tx.access_list.is_none(),
+                    be_bytes_len: access_list_len::<F>(&tx.access_list),
+                    be_bytes_rlc: access_list_rlc(&tx.access_list, challenges),
                 }),
                 access_list_rlc(&tx.access_list, challenges),
             ),
@@ -3144,13 +3561,6 @@ impl<F: Field> TxCircuitConfig<F> {
                 F::from(tx.id as u64),
                 F::from(cum_num_txs),
             )?;
-            let tx_id_gt_prev_cnt = LtChip::construct(self.tx_id_gt_prev_cnt);
-            tx_id_gt_prev_cnt.assign(
-                region,
-                *offset,
-                F::from(cum_num_txs - num_txs),
-                F::from(tx.id as u64),
-            )?;
 
             *offset += 1;
         }
@@ -3231,7 +3641,6 @@ impl<F: Field> TxCircuitConfig<F> {
         challenges: &Challenges<Value<F>>,
     ) -> Result<(), Error> {
         // assign to access_list related columns
-
         if tx.access_list.is_some() {
             // storage key len accumulator
             let mut sks_acc: usize = 0;
@@ -3258,7 +3667,7 @@ impl<F: Field> TxCircuitConfig<F> {
 
                 let field_rlc =
                     rlc_be_bytes(&al.address.to_fixed_bytes(), challenges.keccak_input());
-                section_rlc = section_rlc * r32 + field_rlc;
+                section_rlc = section_rlc * r20 + field_rlc;
 
                 let tx_id_next = if curr_row == total_rows {
                     next_tx.map_or(0, |tx| tx.id)
@@ -3312,11 +3721,7 @@ impl<F: Field> TxCircuitConfig<F> {
                     let is_final = curr_row == total_rows;
 
                     let field_rlc = rlc_be_bytes(&sk.to_fixed_bytes(), challenges.keccak_input());
-                    section_rlc = if sk_idx > 0 {
-                        section_rlc * r32 + field_rlc
-                    } else {
-                        section_rlc * r20 + field_rlc
-                    };
+                    section_rlc = section_rlc * r32 + field_rlc;
 
                     let tx_id_next = if curr_row == total_rows {
                         next_tx.map_or(0, |tx| tx.id)
@@ -3419,13 +3824,18 @@ impl<F: Field> TxCircuitConfig<F> {
             Value::known(F::from(tx_id_next as u64)),
         )?;
 
-        // fixed columns
-        for (col_anno, col, col_val) in [
-            ("q_enable", self.tx_table.q_enable, F::one()),
-            ("tag", self.tx_table.tag, F::from(usize::from(tag) as u64)),
-        ] {
-            region.assign_fixed(|| col_anno, col, offset, || Value::known(col_val))?;
-        }
+        region.assign_fixed(
+            || "q_enable",
+            self.tx_table.q_enable,
+            offset,
+            || Value::known(F::one()),
+        )?;
+        region.assign_advice(
+            || "tag",
+            self.tx_table.tag,
+            offset,
+            || Value::known(F::from(usize::from(tag) as u64)),
+        )?;
 
         // 1st phase columns
         for (col_anno, col, col_val) in [
@@ -3497,7 +3907,7 @@ impl<F: Field> TxCircuitConfig<F> {
                 offset,
                 || Value::known(F::from(usize::from(Null) as u64)),
             )?;
-            region.assign_fixed(|| "tag", self.tx_table.tag, offset, || Value::known(tag))?;
+            region.assign_advice(|| "tag", self.tx_table.tag, offset, || Value::known(tag))?;
             tag_chip.assign(region, offset, &CallData)?;
             // no need to assign tx_id_is_zero_chip for real prover as tx_id = 0
             tx_id_is_zero_chip.assign(region, offset, Value::known(F::zero()))?;
@@ -3541,7 +3951,7 @@ impl<F: Field> TxCircuitConfig<F> {
         end: usize,
     ) -> Result<(), Error> {
         for offset in start..end {
-            region.assign_fixed(
+            region.assign_advice(
                 || "tag",
                 self.tx_table.tag,
                 offset,
@@ -3758,6 +4168,8 @@ impl<F: Field> TxCircuit<F> {
         sign_datas: Vec<SignData>,
         padding_txs: &[Transaction],
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
+        config.tx_rom_table.load(layouter)?;
+
         layouter.assign_region(
             || "tx table aux",
             |mut region| {
@@ -3850,7 +4262,7 @@ impl<F: Field> TxCircuit<F> {
                     }
                     let is_last_tx = i == (sigs.len() - 1);
                     let next_tx = if is_last_tx {
-                        self.txs.iter().find(|tx| !tx.call_data.is_empty())
+                        self.txs.iter().find(|tx| !tx.call_data.is_empty() || (tx.access_list.as_ref().map_or(false, |al| !al.0.is_empty())))
                     } else {
                         Some(get_tx(i+1))
                     };
@@ -3901,7 +4313,7 @@ impl<F: Field> TxCircuit<F> {
                         .txs
                         .iter()
                         .skip(i + 1)
-                        .find(|tx| !tx.call_data.is_empty());
+                        .find(|tx| !tx.call_data.is_empty() || (tx.access_list.as_ref().map_or(false, |al| !al.0.is_empty())));
                     config.assign_calldata_rows(
                         &mut region,
                         &mut offset,
@@ -3926,8 +4338,8 @@ impl<F: Field> TxCircuit<F> {
                 )?;
                 // 3.3. assign first and last indicators
                 for (col_anno, col, row) in [
-                    ("q_calldata_first", config.q_calldata_first, calldata_first_row),
-                    ("q_calldata_last", config.q_calldata_last, calldata_last_row-1),
+                    ("q_dynamic_first", config.q_dynamic_first, calldata_first_row),
+                    ("q_dynamic_last", config.q_dynamic_last, calldata_last_row-1),
                 ] {
                     region.assign_fixed(|| col_anno, col, row, || Value::known(F::one()))?;
                 }
@@ -3945,7 +4357,7 @@ impl<F: Field> SubCircuit<F> for TxCircuit<F> {
         9
     }
 
-    fn new_from_block(block: &witness::Block<F>) -> Self {
+    fn new_from_block(block: &witness::Block) -> Self {
         for tx in &block.txs {
             if tx.chain_id != block.chain_id {
                 panic!(
@@ -3964,7 +4376,7 @@ impl<F: Field> SubCircuit<F> for TxCircuit<F> {
     }
 
     /// Return the minimum number of rows required to prove the block
-    fn min_num_rows_block(block: &witness::Block<F>) -> (usize, usize) {
+    fn min_num_rows_block(block: &witness::Block) -> (usize, usize) {
         // Since each call data byte at least takes one row in RLP circuit.
         // For L2 tx, each call data byte takes two row in RLP circuit.
         assert!(block.circuits_params.max_calldata < block.circuits_params.max_rlp_rows);
@@ -4148,20 +4560,30 @@ pub fn access_list_rlc<F: Field>(
 
         for al in access_list.as_ref().unwrap().0.iter() {
             let field_rlc = rlc_be_bytes(&al.address.to_fixed_bytes(), challenges.keccak_input());
-            section_rlc = section_rlc * r32 + field_rlc;
+            section_rlc = section_rlc * r20 + field_rlc;
 
-            for (sk_idx, sk) in al.storage_keys.iter().enumerate() {
+            for sk in al.storage_keys.iter() {
                 let field_rlc = rlc_be_bytes(&sk.to_fixed_bytes(), challenges.keccak_input());
-                section_rlc = if sk_idx > 0 {
-                    section_rlc * r32 + field_rlc
-                } else {
-                    section_rlc * r20 + field_rlc
-                };
+                section_rlc = section_rlc * r32 + field_rlc;
             }
         }
 
         section_rlc
     } else {
         Value::known(F::zero())
+    }
+}
+
+/// Returns the length of the access list including addresses and storage keys
+pub fn access_list_len<F: Field>(access_list: &Option<AccessList>) -> u32 {
+    if access_list.is_some() {
+        let mut len = 0;
+        for al in access_list.as_ref().unwrap().0.iter() {
+            len += 20;
+            len += 32 * (al.storage_keys.len() as u32);
+        }
+        len
+    } else {
+        0
     }
 }

@@ -9,14 +9,12 @@ use crate::{
         AccountFieldTag, BytecodeFieldTag, CallContextFieldTag, RwTableTag, TxContextFieldTag,
         TxLogFieldTag, TxReceiptFieldTag,
     },
-    util::{build_tx_log_expression, Challenges, Expr},
+    util::{build_tx_log_expression, Challenges, Expr, Field},
 };
-use bus_mapping::{
-    state_db::EMPTY_CODE_HASH_LE,
-    util::{KECCAK_CODE_HASH_EMPTY, POSEIDON_CODE_HASH_EMPTY},
-};
-use eth_types::{Field, ToLittleEndian, ToScalar, ToWord};
+use bus_mapping::util::{KECCAK_CODE_HASH_EMPTY, POSEIDON_CODE_HASH_EMPTY};
+use eth_types::{state_db::EMPTY_CODE_HASH_LE, ToLittleEndian, ToWord, H256};
 use gadgets::util::{and, not};
+use gadgets::ToScalar;
 use halo2_proofs::{
     circuit::Value,
     plonk::{
@@ -174,7 +172,7 @@ impl<F: Field> ReversionInfo<F> {
     }
 }
 
-pub(crate) trait ConstrainBuilderCommon<F: Field> {
+pub trait ConstrainBuilderCommon<F: Field> {
     fn add_constraint(&mut self, name: &'static str, constraint: Expression<F>);
 
     fn require_zero(&mut self, name: &'static str, constraint: Expression<F>) {
@@ -236,7 +234,7 @@ impl<F: Field> BaseConstraintBuilder<F> {
         }
     }
 
-    pub(crate) fn condition<R>(
+    pub fn condition<R>(
         &mut self,
         condition: Expression<F>,
         constraint: impl FnOnce(&mut Self) -> R,
@@ -263,7 +261,7 @@ impl<F: Field> BaseConstraintBuilder<F> {
         }
     }
 
-    pub(crate) fn gate(&self, selector: Expression<F>) -> Vec<(&'static str, Expression<F>)> {
+    pub fn gate(&self, selector: Expression<F>) -> Vec<(&'static str, Expression<F>)> {
         self.constraints
             .clone()
             .into_iter()
@@ -495,6 +493,29 @@ impl<'a, F: Field> EVMConstraintBuilder<'a, F> {
         .query_cells(cell_type, count)
     }
 
+    pub(crate) fn code_hash(&self, codehash: H256) -> Expression<F> {
+        let bytes = codehash.to_word().to_le_bytes();
+        if cfg!(feature = "poseidon-codehash") {
+            // Recover the poseidon hash fr
+            rlc::expr(
+                &bytes.map(|b| b.expr()),
+                Expression::Constant(F::from(256u64)),
+            )
+        } else {
+            self.word_rlc(bytes.map(|b| b.expr()))
+        }
+    }
+
+    pub(crate) fn keccak_code_hash(&self, codehash: H256) -> Expression<F> {
+        let bytes = codehash.to_word().to_le_bytes();
+        self.word_rlc(bytes.map(|b| b.expr()))
+    }
+
+    pub(crate) fn word_rlc_constant(&self, word: eth_types::Word) -> Expression<F> {
+        let bytes = word.to_le_bytes();
+        self.word_rlc(bytes.map(|b| b.expr()))
+    }
+
     pub(crate) fn word_rlc<const N: usize>(&self, bytes: [Expression<F>; N]) -> Expression<F> {
         rlc::expr(&bytes, self.challenges.evm_word())
     }
@@ -572,6 +593,7 @@ impl<'a, F: Field> EVMConstraintBuilder<'a, F> {
         constrain!(memory_word_size);
         constrain!(reversible_write_counter);
         constrain!(log_id);
+        constrain!(end_tx);
     }
 
     // Fixed
@@ -1103,6 +1125,58 @@ impl<'a, F: Field> EVMConstraintBuilder<'a, F> {
                 value_prev,
                 0.expr(),
                 committed_value,
+            ),
+            reversion_info,
+        );
+    }
+
+    // Account Transient Storage
+    pub(crate) fn account_transient_storage_read(
+        &mut self,
+        account_address: Expression<F>,
+        key: Expression<F>,
+        value: Expression<F>,
+        tx_id: Expression<F>,
+    ) {
+        self.rw_lookup(
+            "account_transient_storage_read",
+            false.expr(),
+            RwTableTag::AccountTransientStorage,
+            RwValues::new(
+                tx_id,
+                account_address,
+                0.expr(),
+                key,
+                value.clone(),
+                value,
+                0.expr(),
+                0.expr(),
+            ),
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn account_transient_storage_write(
+        &mut self,
+        account_address: Expression<F>,
+        key: Expression<F>,
+        value: Expression<F>,
+        value_prev: Expression<F>,
+        tx_id: Expression<F>,
+        reversion_info: Option<&mut ReversionInfo<F>>,
+    ) {
+        self.reversible_write(
+            "account_transient_storage_write",
+            RwTableTag::AccountTransientStorage,
+            RwValues::new(
+                tx_id,
+                account_address,
+                0.expr(),
+                key,
+                value,
+                value_prev,
+                0.expr(),
+                0.expr(),
             ),
             reversion_info,
         );

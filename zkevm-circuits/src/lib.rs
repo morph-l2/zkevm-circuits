@@ -5,6 +5,7 @@
 #![allow(incomplete_features)]
 // Needed by DummyGadget in evm circuit
 #![feature(adt_const_params)]
+#![feature(trait_alias)]
 #![feature(slice_group_by)]
 #![feature(lazy_cell)]
 // Needed by some builder patterns in testing modules.
@@ -13,6 +14,7 @@
 #![allow(dead_code)]
 // We want to have UPPERCASE idents sometimes.
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::collapsible_else_if)]
 #![allow(clippy::result_large_err)] // it's large, but what can we do?
 // Catch documentation errors caused by code changes.
 #![deny(rustdoc::broken_intra_doc_links)]

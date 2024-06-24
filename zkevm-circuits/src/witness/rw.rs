@@ -1,11 +1,13 @@
 #![allow(missing_docs)]
 use std::collections::HashMap;
 
+use crate::util::Field;
 use bus_mapping::{
     operation::{self, AccountField, CallContextField, TxLogField, TxReceiptField},
     Error,
 };
-use eth_types::{Address, Field, ToLittleEndian, ToScalar, Word, U256};
+use eth_types::{Address, ToLittleEndian, Word, U256};
+use gadgets::ToScalar;
 
 use halo2_proofs::{circuit::Value, halo2curves::bn256::Fr};
 use itertools::Itertools;
@@ -22,7 +24,7 @@ use super::MptUpdates;
 const ERR_MSG_FIRST: &str = "first access reads don't change value";
 const ERR_MSG_NON_FIRST: &str = "non-first access reads don't change value";
 
-/// Rw constainer for a witness block
+/// Rw container for a witness block
 #[derive(Debug, Default, Clone)]
 pub struct RwMap(pub HashMap<RwTableTag, Vec<Rw>>);
 
@@ -272,6 +274,16 @@ pub enum Rw {
         tx_id: usize,
         committed_value: Word,
     },
+    /// AccountTransientStorage
+    AccountTransientStorage {
+        rw_counter: usize,
+        is_write: bool,
+        account_address: Address,
+        storage_key: Word,
+        value: Word,
+        value_prev: Word,
+        tx_id: usize,
+    },
     /// CallContext
     CallContext {
         rw_counter: usize,
@@ -452,6 +464,12 @@ impl Rw {
                 committed_value,
                 ..
             } => (*value, *value_prev, *tx_id, *committed_value),
+            Self::AccountTransientStorage {
+                value,
+                value_prev,
+                tx_id,
+                ..
+            } => (*value, *value_prev, *tx_id, Word::zero()),
             _ => unreachable!("{:?}", self),
         }
     }
@@ -549,6 +567,7 @@ impl Rw {
             | Self::Memory { rw_counter, .. }
             | Self::Stack { rw_counter, .. }
             | Self::AccountStorage { rw_counter, .. }
+            | Self::AccountTransientStorage { rw_counter, .. }
             | Self::TxAccessListAccount { rw_counter, .. }
             | Self::TxAccessListAccountStorage { rw_counter, .. }
             | Self::TxRefund { rw_counter, .. }
@@ -565,6 +584,7 @@ impl Rw {
             Self::Memory { is_write, .. }
             | Self::Stack { is_write, .. }
             | Self::AccountStorage { is_write, .. }
+            | Self::AccountTransientStorage { is_write, .. }
             | Self::TxAccessListAccount { is_write, .. }
             | Self::TxAccessListAccountStorage { is_write, .. }
             | Self::TxRefund { is_write, .. }
@@ -581,6 +601,7 @@ impl Rw {
             Self::Memory { .. } => RwTableTag::Memory,
             Self::Stack { .. } => RwTableTag::Stack,
             Self::AccountStorage { .. } => RwTableTag::AccountStorage,
+            Self::AccountTransientStorage { .. } => RwTableTag::AccountTransientStorage,
             Self::TxAccessListAccount { .. } => RwTableTag::TxAccessListAccount,
             Self::TxAccessListAccountStorage { .. } => RwTableTag::TxAccessListAccountStorage,
             Self::TxRefund { .. } => RwTableTag::TxRefund,
@@ -595,6 +616,7 @@ impl Rw {
     pub fn id(&self) -> Option<usize> {
         match self {
             Self::AccountStorage { tx_id, .. }
+            | Self::AccountTransientStorage { tx_id, .. }
             | Self::TxAccessListAccount { tx_id, .. }
             | Self::TxAccessListAccountStorage { tx_id, .. }
             | Self::TxRefund { tx_id, .. }
@@ -620,6 +642,9 @@ impl Rw {
                 account_address, ..
             }
             | Self::AccountStorage {
+                account_address, ..
+            }
+            | Self::AccountTransientStorage {
                 account_address, ..
             } => Some(*account_address),
             Self::Memory { memory_address, .. } => Some(Address::from_low_u64_be(*memory_address)),
@@ -650,6 +675,7 @@ impl Rw {
             Self::TxReceipt { field_tag, .. } => Some(*field_tag as u64),
             // See comment above configure for is_non_exist in state_circuit.rs for the explanation
             // for why the field tag for AccountStorage is CodeHash instead of None.
+            // TODO: mason how to interpret this?????
             Self::AccountStorage { .. } => Some(AccountFieldTag::CodeHash as u64),
             Self::Start { .. }
             | Self::Memory { .. }
@@ -657,7 +683,8 @@ impl Rw {
             | Self::TxAccessListAccount { .. }
             | Self::TxAccessListAccountStorage { .. }
             | Self::TxRefund { .. }
-            | Self::TxLog { .. } => None,
+            | Self::TxLog { .. }
+            | Self::AccountTransientStorage { .. } => None,
         }
     }
 
@@ -665,6 +692,7 @@ impl Rw {
     pub fn storage_key(&self) -> Option<Word> {
         match self {
             Self::AccountStorage { storage_key, .. }
+            | Self::AccountTransientStorage { storage_key, .. }
             | Self::TxAccessListAccountStorage { storage_key, .. } => Some(*storage_key),
             Self::Start { .. }
             | Self::CallContext { .. }
@@ -715,10 +743,11 @@ impl Rw {
                 | AccountFieldTag::NonExisting
                 | AccountFieldTag::CodeSize => value.to_scalar().unwrap(),
             },
-            Self::AccountStorage { value, .. } | Self::Stack { value, .. } => {
+            Self::AccountStorage { value, .. }
+            | Self::Stack { value, .. }
+            | Self::AccountTransientStorage { value, .. } => {
                 rlc::value(&value.to_le_bytes(), randomness)
             }
-
             Self::TxLog {
                 field_tag, value, ..
             } => match field_tag {
@@ -740,6 +769,7 @@ impl Rw {
             Self::CallContext { value, .. } => *value,
             Self::Account { value, .. }
             | Self::AccountStorage { value, .. }
+            | Self::AccountTransientStorage { value, .. }
             | Self::Stack { value, .. }
             | Self::Memory { value, .. }
             | Self::TxLog { value, .. } => *value,
@@ -771,6 +801,9 @@ impl Rw {
                 | AccountFieldTag::CodeSize => value_prev.to_scalar().unwrap(),
             }),
             Self::AccountStorage { value_prev, .. } => {
+                Some(rlc::value(&value_prev.to_le_bytes(), randomness))
+            }
+            Self::AccountTransientStorage { value_prev, .. } => {
                 Some(rlc::value(&value_prev.to_le_bytes(), randomness))
             }
             Self::Memory { value_prev, .. } => {
@@ -904,6 +937,22 @@ impl From<&operation::OperationContainer> for RwMap {
                     value_prev: op.op().value_prev,
                     tx_id: op.op().tx_id,
                     committed_value: op.op().committed_value,
+                })
+                .collect(),
+        );
+        rws.insert(
+            RwTableTag::AccountTransientStorage,
+            container
+                .transient_storage
+                .iter()
+                .map(|op| Rw::AccountTransientStorage {
+                    rw_counter: op.rwc().into(),
+                    is_write: op.rw().is_write(),
+                    account_address: op.op().address,
+                    storage_key: op.op().key,
+                    value: op.op().value,
+                    value_prev: op.op().value_prev,
+                    tx_id: op.op().tx_id,
                 })
                 .collect(),
         );

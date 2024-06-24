@@ -19,7 +19,8 @@ use crate::{
     util::Expr,
 };
 
-use eth_types::{evm_types::OpcodeId, Field, ToLittleEndian, U256};
+use crate::util::Field;
+use eth_types::{evm_types::OpcodeId, ToLittleEndian, U256};
 use halo2_proofs::plonk::Error;
 
 // MemoryGadget handles mload/mstore/mstore8 op codes gadget
@@ -162,7 +163,7 @@ impl<F: Field> ExecutionGadget<F> for MemoryGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _tx: &Transaction,
         _: &Call,
         step: &ExecStep,

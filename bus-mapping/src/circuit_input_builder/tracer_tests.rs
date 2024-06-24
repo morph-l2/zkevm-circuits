@@ -4,17 +4,17 @@ use crate::{
         ContractAddressCollisionError, DepthError, ExecError, InsufficientBalanceError, OogError,
     },
     operation::RWCounter,
-    state_db::Account,
 };
 use eth_types::{
     address, bytecode,
     evm_types::{stack::Stack, Gas, Memory, OpcodeId},
     geth_types::GethData,
-    word, Bytecode, GethExecError, GethExecStep, Hash, ToAddress, ToWord, Word,
+    state_db::Account,
+    word, Address, Bytecode, GethExecError, GethExecStep, Hash, ToAddress, ToWord, Word,
 };
 use mock::test_ctx::{helpers::*, LoggerConfig, TestContext};
 use pretty_assertions::assert_eq;
-use std::sync::LazyLock;
+use std::{collections::HashMap, sync::LazyLock};
 
 // Helper struct that contains a CircuitInputBuilder, a particular tx and a
 // particular execution step so that we can easily get a
@@ -46,7 +46,6 @@ impl CircuitInputBuilderTx {
                 prestate: block.geth_traces[0].prestate.clone(),
                 call_trace: block.geth_traces[0].call_trace.clone(),
             },
-            false,
         )
         .unwrap();
 

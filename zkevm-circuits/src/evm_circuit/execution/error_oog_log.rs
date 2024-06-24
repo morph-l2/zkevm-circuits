@@ -15,12 +15,9 @@ use crate::{
         witness::{Block, Call, ExecStep, Transaction},
     },
     table::CallContextFieldTag,
-    util::Expr,
+    util::{Expr, Field},
 };
-use eth_types::{
-    evm_types::{GasCost, OpcodeId},
-    Field,
-};
+use eth_types::evm_types::{GasCost, OpcodeId};
 use halo2_proofs::{circuit::Value, plonk::Error};
 
 #[derive(Clone, Debug)]
@@ -98,7 +95,7 @@ impl<F: Field> ExecutionGadget<F> for ErrorOOGLogGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _tx: &Transaction,
         call: &Call,
         step: &ExecStep,

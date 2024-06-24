@@ -1,9 +1,11 @@
+use crate::util::Field;
 use bus_mapping::{
     circuit_input_builder::{N_BYTES_PER_PAIR, N_PAIRING_PER_OP},
     precompile::{EcPairingError, PrecompileAuxData, PrecompileCalls},
 };
-use eth_types::{evm_types::GasCost, Field, ToScalar};
+use eth_types::evm_types::GasCost;
 use gadgets::util::{and, not, or, select, Expr};
+use gadgets::ToScalar;
 use halo2_proofs::{circuit::Value, plonk::Error};
 
 use crate::{
@@ -148,6 +150,15 @@ impl<F: Field> ExecutionGadget<F> for EcPairingGadget<F> {
                 )
             },
         );
+
+        // when input is zero then input mod_192 is zero
+        cb.condition(input_is_zero.expr(), |cb| {
+            cb.require_true(
+                "when input is zero, then input mod192 is zero",
+                input_mod_192_is_zero.expr(),
+            );
+        });
+
         cb.condition(
             // (len(input) > 768) || (len(input) % 192 != 0)
             or::expr([
@@ -295,7 +306,7 @@ impl<F: Field> ExecutionGadget<F> for EcPairingGadget<F> {
         &self,
         region: &mut CachedRegion<'_, '_, F>,
         offset: usize,
-        block: &Block<F>,
+        block: &Block,
         _transaction: &Transaction,
         call: &Call,
         step: &ExecStep,
