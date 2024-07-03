@@ -1,10 +1,10 @@
 # Circuits for zkEVM
 
-This is the zkEVM circuits used in Morph Mainnet. It was forked from Scroll zkevm-circuits and a lot of new features were added later and in the future:
+This is the zkEVM circuits used in Morph Mainnet. It was forked from Scroll zkevm-circuits, with many new features added and more planned for the future:
 
 1. Sequencer set circuit for decentralized sequencer
 2. EIP4844 circuit
-3. Faster hash function circuits for zktrie
+3. Optimal zk-friendly permutation schemes used in the hash function for zktrie, along with the circuits.
 4. Faster zero-knowledge proof system
 
 ## Docs
