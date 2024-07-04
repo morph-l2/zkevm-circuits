@@ -41,10 +41,11 @@ impl<F: Field> CurieGadget<F> {
         );
 
         // TODO: refactor
-        // is_morph_chain means (chain_id - 53077) * (chain_id - 2710) == 0
+        // is_morph_chain means (chain_id - 2818) * (chain_id - 2710) * (chain_id - 53077) == 0
         let is_morph_chain = IsZeroGadget::construct(
             cb,
             (chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr())
+                * (chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr())
                 * (chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr()),
         );
 

@@ -42,7 +42,7 @@ pub fn rom_table_rows() -> Vec<RomTableRow> {
 mod tests {
     use bus_mapping::circuit_input_builder::TxL1Fee;
     use eth_types::{
-        evm_types::gas_utils::tx_data_gas_cost, forks::SCROLL_MAINNET_CHAIN_ID, Transaction,
+        evm_types::gas_utils::tx_data_gas_cost, forks::MORPH_MAINNET_CHAIN_ID, Transaction,
     };
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
         ).unwrap();
 
         let l1fee = TxL1Fee {
-            chain_id: SCROLL_MAINNET_CHAIN_ID,
+            chain_id: MORPH_MAINNET_CHAIN_ID,
             block_number: 1,
             base_fee: 0x64,
             fee_overhead: 0x17d4,
