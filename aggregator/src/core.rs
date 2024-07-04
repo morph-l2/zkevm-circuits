@@ -37,7 +37,7 @@ use crate::{
     },
     util::{assert_conditional_equal, assert_equal, parse_hash_preimage_cells},
     RlcConfig, BITS, CHUNK_DATA_HASH_INDEX, CHUNK_TX_DATA_HASH_INDEX, LIMBS, POST_STATE_ROOT_INDEX,
-    PREV_STATE_ROOT_INDEX, WITHDRAW_ROOT_INDEX, SEQUENCER_ROOT_INDEX,
+    PREV_STATE_ROOT_INDEX, SEQUENCER_ROOT_INDEX, WITHDRAW_ROOT_INDEX,
 };
 
 /// Subroutine for the witness generations.
@@ -428,7 +428,7 @@ pub(crate) fn assign_keccak_table(
     // (2) chunk[i].piHash preimage =
     //      (chain id ||
     //      chunk[i].prevStateRoot || chunk[i].postStateRoot ||
-    //      chunk[i].withdrawRoot || chunk[i].sequencerRoot || 
+    //      chunk[i].withdrawRoot || chunk[i].sequencerRoot ||
     //      chunk[i].datahash)
     // (3) batchDataHash preimage =
     //      (chunk[0].dataHash || ... || chunk[k-1].dataHash)
@@ -583,8 +583,7 @@ fn copy_constraints<const N_SNARKS: usize>(
                     )?;
                     region.constrain_equal(
                         batch_pi_hash_preimage[i + SEQUENCER_ROOT_INDEX].cell(),
-                        chunk_pi_hash_preimages[N_SNARKS - 1][i + SEQUENCER_ROOT_INDEX]
-                            .cell(),
+                        chunk_pi_hash_preimages[N_SNARKS - 1][i + SEQUENCER_ROOT_INDEX].cell(),
                     )?;
                 }
 
