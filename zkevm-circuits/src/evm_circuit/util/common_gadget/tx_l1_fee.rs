@@ -466,7 +466,7 @@ mod tests {
                 [6, 7, 8, 9, 10, 11].map(|i| witnesses[i].as_u64());
 
             let l1_fee = TxL1Fee {
-                chain_id: eth_types::forks::SCROLL_DEVNET_CHAIN_ID,
+                chain_id: eth_types::forks::MORPH_DEVNET_CHAIN_ID,
                 // block_number 5 is starting number for curie in test devnet.
                 block_number: if is_curie == 1 { 5 + 1 } else { 1 },
                 base_fee: if is_curie == 1 {

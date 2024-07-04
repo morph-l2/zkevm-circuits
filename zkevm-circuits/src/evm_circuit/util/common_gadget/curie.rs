@@ -4,7 +4,7 @@ use crate::{
         table::{FixedTableTag, Lookup},
         util::{
             constraint_builder::{ConstrainBuilderCommon, EVMConstraintBuilder},
-            math_gadget::{IsZeroGadget, LtGadget},
+            math_gadget::{BatchedIsZeroGadget, LtGadget},
         },
     },
     table::BlockContextFieldTag,
@@ -12,7 +12,7 @@ use crate::{
 };
 
 use eth_types::forks::{
-    HardforkId, SCROLL_DEVNET_CHAIN_ID, SCROLL_MAINNET_CHAIN_ID, SCROLL_TESTNET_CHAIN_ID,
+    HardforkId, MORPH_DEVNET_CHAIN_ID, MORPH_MAINNET_CHAIN_ID, MORPH_TESTNET_CHAIN_ID,
 };
 use gadgets::util::not;
 use halo2_proofs::{
@@ -23,8 +23,8 @@ use halo2_proofs::{
 #[derive(Clone, Debug)]
 pub(crate) struct CurieGadget<F> {
     chain_id: Cell<F>,
-    /// Scroll chains have non-zero curie hard fork block number
-    is_scroll_chain: IsZeroGadget<F>,
+    /// Morph chains have non-zero curie hard fork block number
+    is_morph_chain: BatchedIsZeroGadget<F, 3>,
     /// The block height at which curie hard fork happens
     curie_fork_block_num: Cell<F>,
     pub(crate) is_before_curie: LtGadget<F, 8>, // block num is u64
@@ -41,18 +41,27 @@ impl<F: Field> CurieGadget<F> {
         );
 
         // TODO: refactor
-        // is_scoll_chain means (chain_id - 534352) * (chain_id - 222222) == 0
-        let is_scroll_chain = IsZeroGadget::construct(
+        // is_morph_chain means (chain_id - 2818) * (chain_id - 2710) * (chain_id - 53077) == 0
+        // let is_morph_chain = IsZeroGadget::construct(
+        //     cb,
+        //     (chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr())
+        //         * (chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr())
+        //         * (chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr()),
+        // );
+        let is_morph_chain = BatchedIsZeroGadget::construct(
             cb,
-            (chain_id.expr() - SCROLL_MAINNET_CHAIN_ID.expr())
-                * (chain_id.expr() - SCROLL_DEVNET_CHAIN_ID.expr()),
+            [
+                chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr(),
+                chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr(),
+                chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr(),
+            ],
         );
 
-        // For Scroll Networks (mainnet, testnet, devnet),
+        // For Morph Networks (mainnet, testnet, devnet),
         // curie_fork_block_num should be pre-defined.
         // For other chain ids, it should be 0.
         let curie_fork_block_num = cb.query_cell();
-        cb.condition(is_scroll_chain.expr(), |cb| {
+        cb.condition(is_morph_chain.expr(), |cb| {
             cb.add_lookup(
                 "Hardfork lookup",
                 Lookup::Fixed {
@@ -65,7 +74,7 @@ impl<F: Field> CurieGadget<F> {
                 },
             );
         });
-        cb.condition(not::expr(is_scroll_chain.expr()), |cb| {
+        cb.condition(not::expr(is_morph_chain.expr()), |cb| {
             cb.require_zero("enable curie since genesis", curie_fork_block_num.expr());
         });
 
@@ -76,7 +85,7 @@ impl<F: Field> CurieGadget<F> {
         );
         Self {
             chain_id,
-            is_scroll_chain,
+            is_morph_chain,
             curie_fork_block_num,
             is_before_curie,
         }
@@ -91,13 +100,16 @@ impl<F: Field> CurieGadget<F> {
     ) -> Result<(), Error> {
         self.chain_id
             .assign(region, offset, Value::known(F::from(chain_id)))?;
-        self.is_scroll_chain.assign(
+        self.is_morph_chain.assign(
             region,
             offset,
-            (F::from(chain_id) - F::from(SCROLL_MAINNET_CHAIN_ID))
-                * (F::from(chain_id) - F::from(SCROLL_DEVNET_CHAIN_ID)),
+            [
+                F::from(chain_id) - F::from(MORPH_MAINNET_CHAIN_ID),
+                F::from(chain_id) - F::from(MORPH_TESTNET_CHAIN_ID),
+                F::from(chain_id) - F::from(MORPH_DEVNET_CHAIN_ID),
+            ],
         )?;
-        let curie_fork_block_num = if chain_id == SCROLL_TESTNET_CHAIN_ID {
+        let curie_fork_block_num = if chain_id == MORPH_TESTNET_CHAIN_ID {
             0
         } else {
             bus_mapping::circuit_input_builder::curie::get_curie_fork_block(chain_id)
