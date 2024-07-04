@@ -1,13 +1,10 @@
 // Adapted from https://github.com/scroll-tech/go-ethereum/blob/8dc419a70b94f5ca185dcf818a48a3bd2eefc392/consensus/misc/curie.go
 
-use eth_types::{
-    utils::{hash_code, hash_code_keccak},
-    ToWord, Word,
-};
+use eth_types::Word;
 
 use crate::{
     l2_predeployed::l1_gas_price_oracle,
-    operation::{AccountField, AccountOp, StorageOp, RW},
+    operation::{StorageOp, RW},
     Error,
 };
 
