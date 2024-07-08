@@ -138,7 +138,10 @@ impl WitnessGenerator {
                 value: HexBytes(word_buf),
             }
         };
-        let storage_before_proofs = trie.prove(key.as_ref()).unwrap();
+        let storage_before_proofs = trie.prove(key.as_ref()).map_err(|e|{
+            log::error!("trace_storage_update error, address:{:?}, key:{:?}, new_value:{:?}, old_value:{:?}", address, key, new_value, old_value);
+            e
+        }).unwrap();
         let storage_before = decode_proof_for_mpt_path(storage_key, storage_before_proofs);
 
         let store_before = {
