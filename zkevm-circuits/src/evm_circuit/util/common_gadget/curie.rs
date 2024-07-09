@@ -4,7 +4,7 @@ use crate::{
         table::{FixedTableTag, Lookup},
         util::{
             constraint_builder::{ConstrainBuilderCommon, EVMConstraintBuilder},
-            math_gadget::{BatchedIsZeroGadget, LtGadget},
+            math_gadget::{IsZeroGadget, LtGadget},
         },
     },
     table::BlockContextFieldTag,
@@ -24,7 +24,7 @@ use halo2_proofs::{
 pub(crate) struct CurieGadget<F> {
     chain_id: Cell<F>,
     /// Morph chains have non-zero curie hard fork block number
-    is_morph_chain: BatchedIsZeroGadget<F, 3>,
+    is_morph_chain: IsZeroGadget<F>,
     /// The block height at which curie hard fork happens
     curie_fork_block_num: Cell<F>,
     pub(crate) is_before_curie: LtGadget<F, 8>, // block num is u64
@@ -42,20 +42,19 @@ impl<F: Field> CurieGadget<F> {
 
         // TODO: refactor
         // is_morph_chain means (chain_id - 2818) * (chain_id - 2710) * (chain_id - 53077) == 0
-        // let is_morph_chain = IsZeroGadget::construct(
-        //     cb,
-        //     (chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr())
-        //         * (chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr())
-        //         * (chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr()),
-        // );
-        let is_morph_chain = BatchedIsZeroGadget::construct(
+        let is_morph_chain = IsZeroGadget::construct(
             cb,
-            [
-                chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr(),
-                chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr(),
-                chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr(),
-            ],
+            (chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr())
+                * (chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr()),
         );
+        // let is_morph_chain = BatchedIsZeroGadget::construct(
+        //     cb,
+        //     [
+        //         chain_id.expr() - MORPH_MAINNET_CHAIN_ID.expr(),
+        //         chain_id.expr() - MORPH_TESTNET_CHAIN_ID.expr(),
+        //         chain_id.expr() - MORPH_DEVNET_CHAIN_ID.expr(),
+        //     ],
+        // );
 
         // For Morph Networks (mainnet, testnet, devnet),
         // curie_fork_block_num should be pre-defined.
@@ -105,7 +104,6 @@ impl<F: Field> CurieGadget<F> {
             offset,
             [
                 F::from(chain_id) - F::from(MORPH_MAINNET_CHAIN_ID),
-                F::from(chain_id) - F::from(MORPH_TESTNET_CHAIN_ID),
                 F::from(chain_id) - F::from(MORPH_DEVNET_CHAIN_ID),
             ],
         )?;
