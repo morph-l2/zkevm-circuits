@@ -34,6 +34,7 @@ pub fn keccak_inputs(block: &Block) -> Result<Vec<Vec<u8>>, Error> {
         block.prev_state_root,
         block.post_state_root().to_word(),
         block.withdraw_root,
+        block.sequencer_root,
         &block.context,
         &block.txs,
     ));
@@ -86,6 +87,7 @@ fn keccak_inputs_pi_circuit(
     prev_state_root: Word,
     after_state_root: Word,
     withdraw_trie_root: Word,
+    sequencer_root: Word,
     block_headers: &BlockContexts,
     transactions: &[Transaction],
 ) -> Vec<Vec<u8>> {
@@ -155,6 +157,7 @@ fn keccak_inputs_pi_circuit(
         .chain(prev_state_root.to_be_bytes())
         .chain(after_state_root.to_be_bytes())
         .chain(withdraw_trie_root.to_be_bytes())
+        .chain(sequencer_root.to_be_bytes())
         .chain(data_hash.to_fixed_bytes())
         .chain(chunk_txbytes_hash.to_fixed_bytes())
         .collect::<Vec<u8>>();
