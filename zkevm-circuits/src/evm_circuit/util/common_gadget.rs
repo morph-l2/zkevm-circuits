@@ -39,6 +39,7 @@ mod tx_l1_fee;
 mod tx_l1_msg;
 
 pub(crate) use curie::CurieGadget;
+use hex::ToHex;
 pub(crate) use tx_access_list::TxAccessListGadget;
 pub(crate) use tx_eip1559::TxEip1559Gadget;
 pub(crate) use tx_l1_fee::TxL1FeeGadget;
@@ -844,6 +845,19 @@ impl<F: Field> TransferToGadget<F> {
         } else {
             (0.into(), 0.into())
         };
+
+        if receiver_balance != prev_receiver_balance + value {
+            log::warn!(
+                "==========================> receiver_balance: {:?}, prev_receiver_balance: {:?}, value: {:?}",
+                receiver_balance,
+                prev_receiver_balance,
+                value
+            );
+            log::warn!(
+                "==========================> account: {:?}",
+                rws.next().address().unwrap_or_default()
+            );
+        }
 
         debug_assert_eq!(receiver_balance, prev_receiver_balance + value);
         self.receiver.assign(
