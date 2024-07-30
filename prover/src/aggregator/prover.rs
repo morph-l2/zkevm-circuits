@@ -6,7 +6,7 @@ use crate::{
     BatchProof, BatchProvingTask, ChunkProof,
 };
 use aggregator::{ChunkInfo, MAX_AGG_SNARKS};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use sha2::{Digest, Sha256};
 use snark_verifier_sdk::Snark;
 use std::{env, iter::repeat};
@@ -48,7 +48,7 @@ impl Prover {
         chunk_proofs.iter().enumerate().all(|(i, proof)| {
             let result = proof.protocol == self.chunk_protocol;
             if !result {
-                log::error!(
+                log::warn!(
                     "Non-match protocol of chunk-proof index-{}: expected = {:x}, actual = {:x}",
                     i,
                     Sha256::digest(&self.chunk_protocol),
@@ -110,7 +110,7 @@ impl Prover {
         assert!((1..=MAX_AGG_SNARKS).contains(&real_chunk_count));
 
         if !self.check_protocol_of_chunks(&batch.chunk_proofs) {
-            bail!("non-match-chunk-protocol: {name}");
+            log::warn!("non-match-chunk-protocol: {name}");
         }
         let mut chunk_hashes: Vec<_> = batch
             .chunk_proofs
