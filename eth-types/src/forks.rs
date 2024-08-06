@@ -11,7 +11,7 @@ pub enum HardforkId {
 /// Morph devnet and qanet chain id
 pub const MORPH_DEVNET_CHAIN_ID: u64 = 53077;
 /// Morph testnet chain id
-pub const MORPH_TESTNET_CHAIN_ID: u64 = 2710;
+pub const MORPH_TESTNET_CHAIN_ID: u64 = 2810;
 /// Morph mainnet chain id
 pub const MORPH_MAINNET_CHAIN_ID: u64 = 2818;
 
