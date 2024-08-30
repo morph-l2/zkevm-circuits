@@ -50,7 +50,7 @@ dependencies = [
  "encoder",
  "env_logger",
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "gadgets",
  "halo2-base",
  "halo2-ecc",
@@ -597,7 +597,7 @@ dependencies = [
  "ctor",
  "env_logger",
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "ethers-providers",
  "ethers-signers",
  "external-tracer",
@@ -1432,7 +1432,7 @@ name = "eth-types"
 version = "0.11.0"
 dependencies = [
  "base64 0.13.1",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "ethers-signers",
  "halo2curves",
  "hex",
@@ -1511,7 +1511,7 @@ source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "ethers-etherscan",
  "ethers-middleware",
  "ethers-providers",
@@ -1524,7 +1524,7 @@ name = "ethers-addressbook"
 version = "2.0.7"
 source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b7ffe924e3c52d4022f62c32c31803e3f1afa"
 dependencies = [
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "once_cell",
  "serde",
  "serde_json",
@@ -1537,7 +1537,7 @@ source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "ethers-providers",
  "futures-util",
  "hex",
@@ -1555,7 +1555,7 @@ source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b
 dependencies = [
  "Inflector",
  "dunce",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "ethers-etherscan",
  "eyre",
  "hex",
@@ -1578,7 +1578,7 @@ source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b
 dependencies = [
  "Inflector",
  "ethers-contract-abigen",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "hex",
  "proc-macro2",
  "quote",
@@ -1606,6 +1606,7 @@ dependencies = [
  "open-fastrlp",
  "primitive-types",
  "rand",
+ "rkyv",
  "rlp",
  "serde",
  "serde_json",
@@ -1618,38 +1619,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethers-core"
-version = "2.0.7"
-source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7#e32dfd62e7cdec31160b91c5a646883594a586ba"
-dependencies = [
- "arrayvec",
- "bytes",
- "chrono",
- "elliptic-curve",
- "ethabi",
- "generic-array",
- "hex",
- "k256",
- "num_enum 0.6.1",
- "open-fastrlp",
- "rand",
- "rlp",
- "serde",
- "serde_json",
- "strum 0.24.1",
- "tempfile",
- "thiserror",
- "tiny-keccak",
- "unicode-xid",
-]
-
-[[package]]
 name = "ethers-etherscan"
 version = "2.0.7"
 source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b7ffe924e3c52d4022f62c32c31803e3f1afa"
 dependencies = [
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
- "ethers-solc",
+ "ethers-core",
  "reqwest",
  "semver 1.0.22",
  "serde",
@@ -1666,7 +1640,7 @@ dependencies = [
  "async-trait",
  "auto_impl",
  "ethers-contract",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "ethers-etherscan",
  "ethers-providers",
  "ethers-signers",
@@ -1694,7 +1668,7 @@ dependencies = [
  "base64 0.21.7",
  "bytes",
  "enr",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "futures-channel",
  "futures-core",
  "futures-timer",
@@ -1730,7 +1704,7 @@ dependencies = [
  "coins-bip39",
  "elliptic-curve",
  "eth-keystore",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "hex",
  "rand",
  "sha2",
@@ -1745,7 +1719,7 @@ source = "git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv#027b
 dependencies = [
  "cfg-if 1.0.0",
  "dunce",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "glob",
  "hex",
  "home",
@@ -2176,7 +2150,7 @@ name = "halo2-mpt-circuits"
 version = "0.1.0"
 source = "git+https://github.com/scroll-tech/mpt-circuit.git?branch=v0.7#daa3a06e2e96d00337188280ac43fa879e722804"
 dependencies = [
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=feat/rkyv)",
+ "ethers-core",
  "halo2_proofs",
  "hex",
  "itertools 0.10.5",
@@ -2867,7 +2841,7 @@ name = "mock"
 version = "0.11.0"
 dependencies = [
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "ethers-signers",
  "external-tracer",
  "itertools 0.11.0",
@@ -3529,7 +3503,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "git-version",
  "halo2_proofs",
  "hex",
@@ -4743,7 +4717,7 @@ dependencies = [
  "ctor",
  "env_logger",
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "ethers-signers",
  "external-tracer",
  "glob",
@@ -5627,7 +5601,7 @@ dependencies = [
  "either",
  "env_logger",
  "eth-types",
- "ethers-core 2.0.7 (git+https://github.com/scroll-tech/ethers-rs.git?branch=v2.0.7)",
+ "ethers-core",
  "ethers-signers",
  "ff",
  "gadgets",
@@ -5739,11 +5713,11 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "bls12_381"
-version = "0.8.0"
-source = "git+https://github.com/scroll-tech/bls12_381?branch=feat/impl_scalar_field#2c515f73a2462fef8681c8e884edf1710f52b22a"
-
-[[patch.unused]]
 name = "halo2curves"
 version = "0.3.3"
 source = "git+https://github.com/scroll-tech/halo2curves?branch=feat/sp1#a8314863d5e7e8325476eaea35fc20c5384dc4a2"
+
+[[patch.unused]]
+name = "bls12_381"
+version = "0.8.0"
+source = "git+https://github.com/scroll-tech/bls12_381?branch=feat/impl_scalar_field#2c515f73a2462fef8681c8e884edf1710f52b22a"
